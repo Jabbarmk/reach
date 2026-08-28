@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Build output
+client/dist/
+
+# Secrets — never commit
+server/.env
+
+# Uploaded member documents (Aadhaar, ID cards, photos, payment receipts) — personal data
+server/uploads/*
+!server/uploads/.gitkeep
+
+# Admin-uploaded custom logos (keep the shipped default)
+server/branding/logo_[0-9]*
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+*.log

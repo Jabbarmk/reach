@@ -1,0 +1,585 @@
+import express from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import multer from 'multer';
+import crypto from 'crypto';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import { pool } from '../db.js';
+import { requireAdmin, requireScreen, screensForUser } from '../middleware/auth.js';
+import { sendMail, templates } from '../mailer.js';
+
+const router = express.Router();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads');
+
+const maskAadhaar = (n) => (n && n.length === 12 ? `XXXX XXXX ${n.slice(-4)}` : 'XXXX XXXX XXXX');
+const maskId = (n) => {
+  if (!n) return null;
+  const s = String(n);
+  return s.length <= 4 ? 'X'.repeat(s.length) : 'X'.repeat(s.length - 4) + s.slice(-4);
+};
+
+router.post('/login', async (req, res, next) => {
+  try {
+    const { username, password } = req.body || {};
+    if (!username || !password) return res.status(400).json({ error: 'Username and password are required' });
+    const [rows] = await pool.query('SELECT * FROM admins WHERE username = ?', [username]);
+    const admin = rows[0];
+    if (!admin || !(await bcrypt.compare(password, admin.password_hash))) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+    if (!admin.is_active) return res.status(401).json({ error: 'This account has been deactivated' });
+    const token = jwt.sign({ id: admin.id, username: admin.username, role: admin.role }, process.env.JWT_SECRET, { expiresIn: '8h' });
+    res.json({
+      token,
+      username: admin.username,
+      full_name: admin.full_name || admin.username,
+      role: admin.role,
+      screens: screensForUser(admin),
+    });
+  } catch (e) { next(e); }
+});
+
+router.use(requireAdmin);
+
+router.get('/applications', requireScreen('members'), async (req, res, next) => {
+  try {
+    const { status, search, deleted } = req.query;
+    const showDeleted = deleted === '1';
+    if (showDeleted && req.adminUser.role !== 'admin') {
+      return res.status(403).json({ error: 'Only administrators can view deleted members' });
+    }
+    let sql = `SELECT a.id, a.reference_no, a.membership_id, a.membership_type, a.membership_fee, a.name, a.place,
+                      a.is_expat, a.status, a.payment_status, a.aadhaar_number, a.created_at, a.deleted_at,
+                      (SELECT d.id FROM documents d WHERE d.application_id = a.id AND d.doc_type = 'photo' LIMIT 1) AS photo_doc_id
+               FROM applications a WHERE a.deleted_at IS ${showDeleted ? 'NOT NULL' : 'NULL'}`;
+    const params = [];
+    if (status && status !== 'All') { sql += ' AND status = ?'; params.push(status); }
+    if (search) { sql += ' AND (name LIKE ? OR reference_no LIKE ? OR membership_id LIKE ?)'; params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
+    sql += ' ORDER BY created_at DESC LIMIT 500';
+    const [rows] = await pool.query(sql, params);
+    res.json(rows.map((r) => ({ ...r, aadhaar_number: maskAadhaar(r.aadhaar_number) })));
+  } catch (e) { next(e); }
+});
+
+router.get('/applications/stats', requireScreen('overview'), async (req, res, next) => {
+  try {
+    const [rows] = await pool.query('SELECT status, COUNT(*) AS count FROM applications WHERE deleted_at IS NULL GROUP BY status');
+    const [totals] = await pool.query(
+      `SELECT COUNT(*) AS total,
+              SUM(payment_status = 'Paid') AS paid,
+              SUM(created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS recent,
+              SUM(status IN ('Pending Verification','Submitted','Correction Requested')) AS pending
+       FROM applications WHERE deleted_at IS NULL`
+    );
+    const t = totals[0];
+    res.json({
+      byStatus: rows,
+      total: t.total,
+      paid: Number(t.paid) || 0,
+      recent: Number(t.recent) || 0,
+      pending: Number(t.pending) || 0,
+    });
+  } catch (e) { next(e); }
+});
+
+router.get('/applications/:id', requireScreen('members'), async (req, res, next) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM applications WHERE id = ?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Application not found' });
+    const app = rows[0];
+    const [docs] = await pool.query(
+      'SELECT id, doc_type, original_name, mime_type, size_bytes, ocr_status, uploaded_at FROM documents WHERE application_id = ?',
+      [app.id]
+    );
+    const [history] = await pool.query(
+      'SELECT action, detail, actor, created_at FROM status_history WHERE application_id = ? ORDER BY created_at ASC, id ASC',
+      [app.id]
+    );
+    const [customFields] = await pool.query('SELECT field_key, label, step FROM form_fields WHERE is_core = 0');
+    const [plans] = await pool.query('SELECT code, name FROM membership_plans');
+    app.aadhaar_masked = maskAadhaar(app.aadhaar_number);
+    app.id_card_number_abroad_masked = maskId(app.id_card_number_abroad);
+    app.plan_name = plans.find((p) => p.code === app.membership_type)?.name || app.membership_type;
+    let custom = {};
+    try { custom = app.custom_data ? JSON.parse(app.custom_data) : {}; } catch { custom = {}; }
+    const customList = customFields
+      .filter((f) => custom[f.field_key] !== undefined)
+      .map((f) => ({ label: f.label, value: custom[f.field_key], step: f.step }));
+    const [payments] = await pool.query('SELECT * FROM payments WHERE application_id = ?', [app.id]);
+    res.json({ application: app, documents: docs, history, custom: customList, payment: payments[0] || null });
+  } catch (e) { next(e); }
+});
+
+router.get('/documents/:id/file', requireScreen('members'), async (req, res, next) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM documents WHERE id = ?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Document not found' });
+    const doc = rows[0];
+    res.setHeader('Content-Type', doc.mime_type);
+    res.setHeader('Content-Disposition', `inline; filename="${doc.original_name.replace(/[^\w.\- ]/g, '_')}"`);
+    res.sendFile(path.join(UPLOAD_DIR, path.basename(doc.file_name)));
+  } catch (e) { next(e); }
+});
+
+function requireAdminRole(req, res) {
+  if (req.adminUser.role !== 'admin') {
+    res.status(403).json({ error: 'Only administrators can do this' });
+    return false;
+  }
+  return true;
+}
+
+// Admin-role only: soft delete — moves the member to Deleted Members.
+router.delete('/applications/:id', requireScreen('members'), async (req, res, next) => {
+  try {
+    if (!requireAdminRole(req, res)) return;
+    const [rows] = await pool.query('SELECT id, reference_no FROM applications WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Application not found' });
+    await pool.query('UPDATE applications SET deleted_at = NOW() WHERE id = ?', [rows[0].id]);
+    await pool.query('INSERT INTO status_history (application_id, action, detail, actor) VALUES (?,?,?,?)',
+      [rows[0].id, 'Deleted', 'Moved to Deleted Members', req.admin.username]);
+    res.json({ ok: true, deleted: rows[0].reference_no });
+  } catch (e) { next(e); }
+});
+
+// Admin-role only: restore a soft-deleted member.
+router.post('/applications/:id/restore', requireScreen('members'), async (req, res, next) => {
+  try {
+    if (!requireAdminRole(req, res)) return;
+    const [rows] = await pool.query('SELECT id FROM applications WHERE id = ? AND deleted_at IS NOT NULL', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Deleted application not found' });
+    await pool.query('UPDATE applications SET deleted_at = NULL WHERE id = ?', [rows[0].id]);
+    await pool.query('INSERT INTO status_history (application_id, action, detail, actor) VALUES (?,?,?,?)',
+      [rows[0].id, 'Restored', 'Restored from Deleted Members', req.admin.username]);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// Admin-role only: permanent removal (only from Deleted Members) — record, documents and files.
+router.delete('/applications/:id/purge', requireScreen('members'), async (req, res, next) => {
+  try {
+    if (!requireAdminRole(req, res)) return;
+    const [rows] = await pool.query('SELECT id, reference_no FROM applications WHERE id = ? AND deleted_at IS NOT NULL', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Only members in Deleted Members can be permanently removed' });
+    const app = rows[0];
+    const [docs] = await pool.query('SELECT file_name FROM documents WHERE application_id = ?', [app.id]);
+    await pool.query('DELETE FROM applications WHERE id = ?', [app.id]); // documents/history cascade
+    for (const doc of docs) {
+      try { fs.unlinkSync(path.join(UPLOAD_DIR, path.basename(doc.file_name))); } catch { /* file already gone */ }
+    }
+    res.json({ ok: true, purged: app.reference_no });
+  } catch (e) { next(e); }
+});
+
+const EDITABLE_FIELDS = [
+  'name', 'father_name', 'house_name', 'place', 'post_office', 'panchayath', 'blood_group',
+  'date_of_birth', 'aadhaar_number', 'qualification', 'phone_abroad', 'id_card_number_abroad',
+  'working_country', 'city', 'retired_year', 'phone_india', 'whatsapp_number', 'email',
+  'current_job', 'years_abroad', 'emergency_name', 'emergency_phone',
+];
+
+// Admin-role only: edit member details.
+router.put('/applications/:id', requireScreen('members'), async (req, res, next) => {
+  try {
+    if (!requireAdminRole(req, res)) return;
+    const [rows] = await pool.query('SELECT * FROM applications WHERE id = ?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Application not found' });
+    const app = rows[0];
+    const b = req.body || {};
+
+    const updates = {};
+    for (const key of EDITABLE_FIELDS) {
+      if (b[key] === undefined) continue;
+      updates[key] = b[key] === '' ? (key === 'years_abroad' ? 0 : null) : b[key];
+    }
+    if (updates.name !== undefined && !String(updates.name || '').trim()) {
+      return res.status(400).json({ error: 'Name cannot be empty' });
+    }
+    if (updates.aadhaar_number !== undefined && updates.aadhaar_number !== null) {
+      const digits = String(updates.aadhaar_number).replace(/\s/g, '');
+      if (digits && !/^\d{12}$/.test(digits)) return res.status(400).json({ error: 'Aadhaar number must be exactly 12 digits' });
+      updates.aadhaar_number = digits || '';
+    }
+    if (updates.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updates.email)) {
+      return res.status(400).json({ error: 'E-mail is invalid' });
+    }
+    if (!Object.keys(updates).length) return res.status(400).json({ error: 'Nothing to update' });
+
+    const changed = Object.keys(updates).filter((k) => String(updates[k] ?? '') !== String(app[k] ?? ''));
+    const keys = Object.keys(updates);
+    await pool.query(`UPDATE applications SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`, [...Object.values(updates), app.id]);
+    if (changed.length) {
+      await pool.query('INSERT INTO status_history (application_id, action, detail, actor) VALUES (?,?,?,?)',
+        [app.id, 'Edited', `Updated: ${changed.join(', ')}`, req.admin.username]);
+    }
+    const [fresh] = await pool.query('SELECT * FROM applications WHERE id = ?', [app.id]);
+    const result = fresh[0];
+    result.aadhaar_masked = maskAadhaar(result.aadhaar_number);
+    res.json({ application: result });
+  } catch (e) { next(e); }
+});
+
+/* ===================== Payments ===================== */
+
+const receiptUpload = multer({
+  storage: multer.diskStorage({
+    destination: UPLOAD_DIR,
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase().replace(/[^.a-z0-9]/g, '') || '.bin';
+      cb(null, `receipt_${Date.now()}_${crypto.randomBytes(6).toString('hex')}${ext}`);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!['image/jpeg', 'image/png', 'application/pdf'].includes(file.mimetype)) {
+      return cb(new Error('Receipt must be a PDF, JPG or PNG'));
+    }
+    cb(null, true);
+  },
+});
+
+async function insertReceiptDoc(conn, appId, file) {
+  const [result] = await conn.query(
+    'INSERT INTO documents (application_id, doc_type, file_name, original_name, mime_type, size_bytes, ocr_status) VALUES (?,?,?,?,?,?,?)',
+    [appId, 'payment_receipt', file.filename, file.originalname, file.mimetype, file.size, 'not_applicable']
+  );
+  return result.insertId;
+}
+
+async function removeReceiptDoc(conn, docId) {
+  if (!docId) return;
+  const [docs] = await conn.query('SELECT file_name FROM documents WHERE id = ?', [docId]);
+  await conn.query('DELETE FROM documents WHERE id = ?', [docId]);
+  for (const doc of docs) {
+    try { fs.unlinkSync(path.join(UPLOAD_DIR, path.basename(doc.file_name))); } catch { /* already gone */ }
+  }
+}
+
+router.get('/payments', requireScreen('payments'), async (req, res, next) => {
+  try {
+    const { search } = req.query;
+    let sql = `SELECT p.*, a.name, a.reference_no, a.membership_id, a.membership_type, a.status AS member_status
+               FROM payments p JOIN applications a ON a.id = p.application_id
+               WHERE a.deleted_at IS NULL`;
+    const params = [];
+    if (search) {
+      sql += ' AND (a.name LIKE ? OR a.reference_no LIKE ? OR a.membership_id LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+    sql += ' ORDER BY p.paid_on DESC, p.id DESC LIMIT 500';
+    const [rows] = await pool.query(sql, params);
+    res.json(rows);
+  } catch (e) { next(e); }
+});
+
+// Record a payment. With approve=1 it also approves the application in the same
+// transaction (allowed from the approvals screen, e.g. staff using the approve dialog).
+router.post(
+  '/payments',
+  receiptUpload.single('receipt'),
+  (req, res, next) => requireScreen(req.body?.approve === '1' ? 'approvals' : 'payments')(req, res, next),
+  async (req, res, next) => {
+    const { application_id, amount, method, paid_on, note, approve } = req.body || {};
+    const amt = Number(amount);
+    if (!application_id || !(amt > 0)) return res.status(400).json({ error: 'A valid amount is required' });
+    if (!method?.trim()) return res.status(400).json({ error: 'Payment method is required' });
+    if (!paid_on || isNaN(Date.parse(paid_on))) return res.status(400).json({ error: 'Payment date is invalid' });
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [apps] = await conn.query('SELECT * FROM applications WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [application_id]);
+      if (!apps.length) { await conn.rollback(); return res.status(404).json({ error: 'Application not found' }); }
+      const app = apps[0];
+      const [existing] = await conn.query('SELECT id FROM payments WHERE application_id = ?', [app.id]);
+      if (existing.length) { await conn.rollback(); return res.status(400).json({ error: 'A payment is already recorded for this member — edit it instead' }); }
+
+      let approvedNow = false;
+      let membershipId = app.membership_id;
+      if (approve === '1') {
+        if (!['Pending Verification', 'Submitted', 'Correction Requested'].includes(app.status)) {
+          await conn.rollback();
+          return res.status(400).json({ error: 'This application is not awaiting approval' });
+        }
+        membershipId = membershipId || (await generateMembershipId(conn, app));
+        const [[plan]] = await conn.query('SELECT * FROM membership_plans WHERE code = ?', [app.membership_type]);
+        let validityStart, validityEnd;
+        if (plan && plan.validity_type === 'range') {
+          validityStart = plan.validity_start;
+          validityEnd = plan.validity_end;
+        } else {
+          validityStart = new Date().toISOString().slice(0, 10);
+          validityEnd = null;
+        }
+        await conn.query(
+          'UPDATE applications SET membership_id = ?, validity_start = ?, validity_end = ? WHERE id = ?',
+          [membershipId, validityStart, validityEnd, app.id]
+        );
+        await conn.query('INSERT INTO status_history (application_id, action, detail, actor) VALUES (?,?,?,?)',
+          [app.id, 'Approved', `Membership ID ${membershipId} generated. Status: Active.`, req.admin.username]);
+        approvedNow = true;
+      }
+
+      const receiptDocId = req.file ? await insertReceiptDoc(conn, app.id, req.file) : null;
+      await conn.query(
+        'INSERT INTO payments (application_id, amount, method, paid_on, note, receipt_doc_id, recorded_by) VALUES (?,?,?,?,?,?,?)',
+        [app.id, amt, method.trim(), paid_on, note?.trim() || null, receiptDocId, req.admin.username]
+      );
+
+      const newStatus = approvedNow || (membershipId && ['Payment Pending', 'Approved'].includes(app.status))
+        ? 'Active' : app.status;
+      await conn.query(
+        'UPDATE applications SET payment_status = ?, payment_note = ?, status = ? WHERE id = ?',
+        ['Paid', note?.trim() || null, newStatus, app.id]
+      );
+      await conn.query('INSERT INTO status_history (application_id, action, detail, actor) VALUES (?,?,?,?)',
+        [app.id, 'Payment Recorded', `₹${amt.toLocaleString('en-IN')} via ${method.trim()}${req.file ? ' (receipt attached)' : ''}`, req.admin.username]);
+
+      await conn.commit();
+
+      const [fresh] = await pool.query('SELECT * FROM applications WHERE id = ?', [app.id]);
+      const result = fresh[0];
+      if (result.email) {
+        if (approvedNow) {
+          const [s1, t1, b1] = templates.approved(result);
+          sendMail(result.email, s1, t1, b1);
+        }
+        const [s2, t2, b2] = templates.paid(result);
+        sendMail(result.email, s2, t2, b2);
+      }
+      result.aadhaar_masked = maskAadhaar(result.aadhaar_number);
+      res.status(201).json({ application: result });
+    } catch (e) {
+      await conn.rollback();
+      next(e);
+    } finally {
+      conn.release();
+    }
+  }
+);
+
+router.put('/payments/:id', receiptUpload.single('receipt'), requireScreen('payments'), async (req, res, next) => {
+  const conn = await pool.getConnection();
+  try {
+    if (req.adminUser.role !== 'admin') { conn.release(); return res.status(403).json({ error: 'Only administrators can edit payments' }); }
+    const { amount, method, paid_on, note } = req.body || {};
+    await conn.beginTransaction();
+    const [rows] = await conn.query('SELECT * FROM payments WHERE id = ? FOR UPDATE', [req.params.id]);
+    if (!rows.length) { await conn.rollback(); return res.status(404).json({ error: 'Payment not found' }); }
+    const p = rows[0];
+    const amt = amount !== undefined ? Number(amount) : Number(p.amount);
+    if (!(amt > 0)) { await conn.rollback(); return res.status(400).json({ error: 'A valid amount is required' }); }
+
+    let receiptDocId = p.receipt_doc_id;
+    if (req.file) {
+      await removeReceiptDoc(conn, p.receipt_doc_id);
+      receiptDocId = await insertReceiptDoc(conn, p.application_id, req.file);
+    }
+    await conn.query(
+      'UPDATE payments SET amount = ?, method = ?, paid_on = ?, note = ?, receipt_doc_id = ? WHERE id = ?',
+      [amt, (method ?? p.method).trim(), paid_on || p.paid_on, note !== undefined ? (note.trim() || null) : p.note, receiptDocId, p.id]
+    );
+    await conn.query('INSERT INTO status_history (application_id, action, detail, actor) VALUES (?,?,?,?)',
+      [p.application_id, 'Payment Edited', `₹${amt.toLocaleString('en-IN')} via ${(method ?? p.method).trim()}`, req.admin.username]);
+    await conn.commit();
+    res.json({ ok: true });
+  } catch (e) {
+    await conn.rollback();
+    next(e);
+  } finally {
+    conn.release();
+  }
+});
+
+router.delete('/payments/:id', requireScreen('payments'), async (req, res, next) => {
+  const conn = await pool.getConnection();
+  try {
+    if (req.adminUser.role !== 'admin') { conn.release(); return res.status(403).json({ error: 'Only administrators can delete payments' }); }
+    await conn.beginTransaction();
+    const [rows] = await conn.query('SELECT * FROM payments WHERE id = ? FOR UPDATE', [req.params.id]);
+    if (!rows.length) { await conn.rollback(); return res.status(404).json({ error: 'Payment not found' }); }
+    const p = rows[0];
+    await removeReceiptDoc(conn, p.receipt_doc_id);
+    await conn.query('DELETE FROM payments WHERE id = ?', [p.id]);
+    const [apps] = await conn.query('SELECT * FROM applications WHERE id = ? FOR UPDATE', [p.application_id]);
+    if (apps.length) {
+      const app = apps[0];
+      const newStatus = app.status === 'Active' && app.membership_id ? 'Payment Pending' : app.status;
+      await conn.query('UPDATE applications SET payment_status = ?, payment_note = NULL, status = ? WHERE id = ?',
+        ['Unpaid', newStatus, app.id]);
+      await conn.query('INSERT INTO status_history (application_id, action, detail, actor) VALUES (?,?,?,?)',
+        [app.id, 'Payment Deleted', `Removed ₹${Number(p.amount).toLocaleString('en-IN')} (${p.method})`, req.admin.username]);
+    }
+    await conn.commit();
+    res.json({ ok: true });
+  } catch (e) {
+    await conn.rollback();
+    next(e);
+  } finally {
+    conn.release();
+  }
+});
+
+// Society-wide member counter kept in the settings table (row-locked inside the approve transaction).
+async function nextMemberSeq(conn) {
+  const [rows] = await conn.query("SELECT value FROM settings WHERE name = 'member_seq' FOR UPDATE");
+  let next;
+  if (rows.length) {
+    try { next = Number(JSON.parse(rows[0].value).next) || 1; } catch { next = 1; }
+    await conn.query("UPDATE settings SET value = ? WHERE name = 'member_seq'", [JSON.stringify({ next: next + 1 })]);
+  } else {
+    const [[{ n }]] = await conn.query('SELECT COUNT(*) AS n FROM applications WHERE membership_id IS NOT NULL');
+    next = n + 1;
+    await conn.query("INSERT INTO settings (name, value) VALUES ('member_seq', ?)", [JSON.stringify({ next: next + 1 })]);
+  }
+  return next;
+}
+
+async function generateMembershipId(conn, app) {
+  const [cfgRows] = await conn.query("SELECT value FROM settings WHERE name = 'membership_id'");
+  let cfg = { mode: 'pattern', pattern: 'REACH-{YEAR}-{SEQ}', digits: 4 };
+  if (cfgRows.length) {
+    try { cfg = { ...cfg, ...JSON.parse(cfgRows[0].value) }; } catch { /* keep defaults */ }
+  }
+  const digits = Math.min(8, Math.max(2, Number(cfg.digits) || 4));
+
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const seq = await nextMemberSeq(conn);
+    const pad = String(seq).padStart(digits, '0');
+    let id;
+    if (cfg.mode === 'panchayath') {
+      const letters = String(app.panchayath || '').replace(/[^A-Za-z]/g, '').toUpperCase();
+      const prefix = (letters.slice(0, 4) || 'MEMB').padEnd(4, 'X');
+      id = `${prefix}${pad}`;
+    } else {
+      let pattern = cfg.pattern || 'REACH-{YEAR}-{SEQ}';
+      if (!pattern.includes('{SEQ}')) pattern += '{SEQ}';
+      id = pattern
+        .replaceAll('{YEAR}', String(new Date().getFullYear()))
+        .replaceAll('{SEQ}', pad);
+    }
+    const [[{ n }]] = await conn.query('SELECT COUNT(*) AS n FROM applications WHERE membership_id = ?', [id]);
+    if (!n) return id;
+  }
+  throw new Error('Could not generate a unique membership ID');
+}
+
+const ACTION_SCREEN = {
+  approve: 'approvals',
+  reject: 'approvals',
+  request_correction: 'approvals',
+  mark_paid: 'payments',
+  deactivate: 'members',
+  reactivate: 'members',
+};
+const ADMIN_ONLY_ACTIONS = ['deactivate', 'reactivate'];
+
+router.post('/applications/:id/action', async (req, res, next) => {
+  const { action, note } = req.body || {};
+  const screen = ACTION_SCREEN[action];
+  if (!screen) return res.status(400).json({ error: 'Unknown action' });
+  // Enforce screen access for this specific action type.
+  requireScreen(screen)(req, res, async () => {
+    if (ADMIN_ONLY_ACTIONS.includes(action) && !requireAdminRole(req, res)) return;
+    const actor = req.admin.username;
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [rows] = await conn.query('SELECT * FROM applications WHERE id = ? FOR UPDATE', [req.params.id]);
+      if (!rows.length) { await conn.rollback(); return res.status(404).json({ error: 'Application not found' }); }
+      const app = rows[0];
+      const [[plan]] = await conn.query('SELECT * FROM membership_plans WHERE code = ?', [app.membership_type]);
+
+      let update = {};
+      let historyAction = action;
+      let detail = note || null;
+      let mailKey = null;
+
+      switch (action) {
+        case 'approve': {
+          const membershipId = app.membership_id || (await generateMembershipId(conn, app));
+          let validityStart, validityEnd;
+          if (plan && plan.validity_type === 'range') {
+            validityStart = plan.validity_start;
+            validityEnd = plan.validity_end;
+          } else {
+            validityStart = new Date().toISOString().slice(0, 10);
+            validityEnd = null;
+          }
+          const status = app.payment_status === 'Paid' ? 'Active' : 'Payment Pending';
+          update = { status, membership_id: membershipId, validity_start: validityStart, validity_end: validityEnd, admin_note: note || app.admin_note };
+          historyAction = 'Approved';
+          detail = `Membership ID ${membershipId} generated. Status: ${status}.` + (note ? ` Note: ${note}` : '');
+          mailKey = 'approved';
+          break;
+        }
+        case 'reject':
+          update = { status: 'Rejected', admin_note: note || app.admin_note };
+          historyAction = 'Rejected';
+          mailKey = 'rejected';
+          break;
+        case 'request_correction':
+          update = { status: 'Correction Requested', admin_note: note || app.admin_note };
+          historyAction = 'Correction Requested';
+          mailKey = 'correction';
+          break;
+        case 'mark_paid': {
+          const status = ['Payment Pending', 'Approved'].includes(app.status) && app.membership_id ? 'Active' : app.status;
+          update = { payment_status: 'Paid', payment_note: note || null, status };
+          historyAction = 'Payment Recorded';
+          detail = note ? `Payment recorded: ${note}` : 'Payment recorded';
+          mailKey = 'paid';
+          break;
+        }
+        case 'deactivate': {
+          if (app.status !== 'Active') {
+            await conn.rollback();
+            return res.status(400).json({ error: 'Only Active members can be deactivated' });
+          }
+          update = { status: 'Deactivated', admin_note: note || app.admin_note };
+          historyAction = 'Deactivated';
+          break;
+        }
+        case 'reactivate': {
+          if (app.status !== 'Deactivated') {
+            await conn.rollback();
+            return res.status(400).json({ error: 'Only deactivated members can be reactivated' });
+          }
+          update = { status: 'Active', admin_note: note || app.admin_note };
+          historyAction = 'Reactivated';
+          break;
+        }
+      }
+
+      const fields = Object.keys(update).map((k) => `${k} = ?`).join(', ');
+      await conn.query(`UPDATE applications SET ${fields} WHERE id = ?`, [...Object.values(update), app.id]);
+      await conn.query(
+        'INSERT INTO status_history (application_id, action, detail, actor) VALUES (?,?,?,?)',
+        [app.id, historyAction, detail, actor]
+      );
+      await conn.commit();
+
+      const [updated] = await pool.query('SELECT * FROM applications WHERE id = ?', [app.id]);
+      const result = updated[0];
+      result.aadhaar_masked = maskAadhaar(result.aadhaar_number);
+      result.id_card_number_abroad_masked = maskId(result.id_card_number_abroad);
+
+      if (mailKey && result.email) {
+        const [subject, title, body] = templates[mailKey](result, note);
+        sendMail(result.email, subject, title, body); // fire and forget
+      }
+
+      res.json({ application: result });
+    } catch (e) {
+      await conn.rollback();
+      next(e);
+    } finally {
+      conn.release();
+    }
+  });
+});
+
+export default router;
