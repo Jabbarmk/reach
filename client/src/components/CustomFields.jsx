@@ -48,7 +48,7 @@ export default function CustomFields({ step, cfg, data, setField, errors }) {
             return (
               <TextField
                 key={f.field_key} label={f.label} required={required} error={error}
-                value={value} onChange={(v) => setCustom(f.field_key, v)}
+                value={value} onChange={(v) => setCustom(f.field_key, v)} uppercase
               />
             );
         }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
-import { api, fetchDocBlob, setToken } from '../api.js';
+import { api, fetchDocBlob, fetchReceiptBlob, downloadBlob, setToken } from '../api.js';
 import MembershipCard from './MembershipCard.jsx';
 import PaymentModal from './PaymentModal.jsx';
 
@@ -145,6 +145,7 @@ export default function ApplicationDetail() {
               {app.is_expat ? (
                 <>
                   <Row k="Phone (Abroad)" v={app.phone_abroad} />
+                  <Row k="Home Contact Number" v={app.home_contact_number} />
                   <Row k="ID Number (Abroad)" v={app.id_card_number_abroad_masked} />
                   <Row k="Working Country" v={app.working_country} />
                   <Row k="City" v={app.city} />
@@ -214,6 +215,7 @@ export default function ApplicationDetail() {
             <div className="card" style={{ marginBottom: 20 }}>
               <h2 style={{ fontSize: 16, marginBottom: 12 }}>Payment</h2>
               <div className="review-rows" style={{ padding: 0 }}>
+                {data.payment.receipt_number && <div className="review-row"><div className="k">Receipt No.</div><div className="v" style={{ fontFamily: 'monospace' }}>{data.payment.receipt_number}</div></div>}
                 <div className="review-row"><div className="k">Amount</div><div className="v">₹{Number(data.payment.amount).toLocaleString('en-IN')}</div></div>
                 <div className="review-row"><div className="k">Method</div><div className="v">{data.payment.method}</div></div>
                 <div className="review-row"><div className="k">Date</div><div className="v">{data.payment.paid_on}</div></div>
@@ -221,13 +223,25 @@ export default function ApplicationDetail() {
                 {data.payment.note && <div className="review-row"><div className="k">Note</div><div className="v">{data.payment.note}</div></div>}
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                {data.payment.receipt_number && (
+                  <>
+                    <button className="btn btn-teal btn-sm"
+                      onClick={async () => { const url = await fetchReceiptBlob(data.payment.id); window.open(url, '_blank'); }}>
+                      🧾 View Receipt PDF
+                    </button>
+                    <button className="btn btn-outline btn-sm"
+                      onClick={async () => { const url = await fetchReceiptBlob(data.payment.id); downloadBlob(url, `${data.payment.receipt_number}.pdf`); }}>
+                      ⬇ Download
+                    </button>
+                  </>
+                )}
                 {data.payment.receipt_doc_id && (
                   <button className="btn btn-outline btn-sm"
                     onClick={() => {
                       const doc = data.documents.find((d) => d.id === data.payment.receipt_doc_id);
                       if (doc) openDoc(doc);
                     }}>
-                    📄 View Receipt
+                    📄 View Uploaded Proof
                   </button>
                 )}
                 {session?.role === 'admin' && (

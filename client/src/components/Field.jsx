@@ -1,11 +1,15 @@
-export function TextField({ label, required = true, value, onChange, error, type = 'text', badge, hint, ...rest }) {
+export function TextField({ label, required = true, value, onChange, error, type = 'text', badge, hint, uppercase = false, ...rest }) {
+  const handleChange = (e) => {
+    const v = e.target.value;
+    onChange(uppercase && type === 'text' ? v.toUpperCase() : v);
+  };
   return (
     <div className={`field ${error ? 'invalid' : ''}`}>
       <label>
         {label} {required ? <span className="req">*</span> : <span className="opt">(optional)</span>}
         {badge && <span className="autofill-badge">✦ {badge}</span>}
       </label>
-      <input type={type} value={value ?? ''} onChange={(e) => onChange(e.target.value)} {...rest} />
+      <input type={type} value={value ?? ''} onChange={handleChange} {...rest} />
       {hint && !error && <div className="hint">{hint}</div>}
       {error && <div className="err">{error}</div>}
     </div>

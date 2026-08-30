@@ -33,29 +33,30 @@ export default function StepPersonal({ data, setField, errors, cfg }) {
           photo={data.photo}
           onChange={(p) => setField('photo', p)}
           error={errors.photo}
-          label={label('photo', '1. Photo')}
+          label={label('photo', 'Photo')}
           required={req('photo')}
         />
       )}
 
       {vis('name') && (
         <TextField
-          label={label('name', '2. Name')} required={req('name')} value={data.name}
+          label={label('name', 'Name')} required={req('name')} value={data.name}
           onChange={(v) => { setField('name', v); setField('name_autofilled', false); }}
           error={errors.name}
           badge={data.name_autofilled ? 'Autofilled from Aadhaar' : null}
           placeholder="Full name as on Aadhaar"
+          uppercase
         />
       )}
 
       <div className="grid2">
-        {vis('father_name') && <TextField label={label('father_name', "3. Father's Name")} required={req('father_name')} value={data.father_name} onChange={(v) => setField('father_name', v)} error={errors.father_name} />}
-        {vis('house_name') && <TextField label={label('house_name', '4. House Name')} required={req('house_name')} value={data.house_name} onChange={(v) => setField('house_name', v)} error={errors.house_name} />}
-        {vis('place') && <TextField label={label('place', '5. Place')} required={req('place')} value={data.place} onChange={(v) => setField('place', v)} error={errors.place} />}
-        {vis('post_office') && <TextField label={label('post_office', '6. Post Office')} required={req('post_office')} value={data.post_office} onChange={(v) => setField('post_office', v)} error={errors.post_office} />}
+        {vis('father_name') && <TextField label={label('father_name', "Father's Name")} required={req('father_name')} value={data.father_name} onChange={(v) => setField('father_name', v)} error={errors.father_name} uppercase />}
+        {vis('house_name') && <TextField label={label('house_name', 'House Name')} required={req('house_name')} value={data.house_name} onChange={(v) => setField('house_name', v)} error={errors.house_name} uppercase />}
+        {vis('place') && <TextField label={label('place', 'Place')} required={req('place')} value={data.place} onChange={(v) => setField('place', v)} error={errors.place} uppercase />}
+        {vis('post_office') && <TextField label={label('post_office', 'Post Office')} required={req('post_office')} value={data.post_office} onChange={(v) => setField('post_office', v)} error={errors.post_office} uppercase />}
         {vis('panchayath') && (
           <SearchableSelect
-            label={label('panchayath', '7. Panchayath / Municipality')} required={req('panchayath')}
+            label={label('panchayath', 'Panchayath / Municipality')} required={req('panchayath')}
             value={data.panchayath}
             onChange={(v) => setField('panchayath', v)}
             options={cfg.options.panchayath || []}
@@ -63,14 +64,14 @@ export default function StepPersonal({ data, setField, errors, cfg }) {
             placeholder="Search panchayath / municipality…"
           />
         )}
-        {vis('blood_group') && <SelectField label={label('blood_group', '8. Blood Group')} required={req('blood_group')} value={data.blood_group} onChange={(v) => setField('blood_group', v)} options={cfg.options.blood_group || []} error={errors.blood_group} />}
+        {vis('blood_group') && <SelectField label={label('blood_group', 'Blood Group')} required={req('blood_group')} value={data.blood_group} onChange={(v) => setField('blood_group', v)} options={cfg.options.blood_group || []} error={errors.blood_group} />}
         {vis('date_of_birth') && (
           <TextField
-            label={label('date_of_birth', '9. Date of Birth')} required={req('date_of_birth')} type="date" value={data.date_of_birth}
+            label={label('date_of_birth', 'Date of Birth')} required={req('date_of_birth')} type="date" value={data.date_of_birth}
             onChange={(v) => setField('date_of_birth', v)} error={errors.date_of_birth} max={today}
           />
         )}
-        {vis('qualification') && <SelectField label={label('qualification', '11. Qualification')} required={req('qualification')} value={data.qualification} onChange={(v) => setField('qualification', v)} options={cfg.options.qualification || []} error={errors.qualification} />}
+        {vis('qualification') && <SelectField label={label('qualification', 'Qualification')} required={req('qualification')} value={data.qualification} onChange={(v) => setField('qualification', v)} options={cfg.options.qualification || []} error={errors.qualification} />}
       </div>
 
       {(vis('aadhaar_upload') || vis('aadhaar_number')) && <div className="section-title">Aadhaar Card</div>}
@@ -89,7 +90,7 @@ export default function StepPersonal({ data, setField, errors, cfg }) {
       )}
       {vis('aadhaar_number') && (
         <TextField
-          label={label('aadhaar_number', '10. Aadhaar Card Number')} required={req('aadhaar_number')}
+          label={label('aadhaar_number', 'Aadhaar Card Number')} required={req('aadhaar_number')}
           value={formatAadhaar(data.aadhaar_number || '')}
           onChange={(v) => { setField('aadhaar_number', v.replace(/\D/g, '').slice(0, 12)); setField('aadhaar_autofilled', false); }}
           error={errors.aadhaar_number}

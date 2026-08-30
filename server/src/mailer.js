@@ -33,7 +33,8 @@ function wrap(title, bodyHtml) {
 }
 
 // Fire-and-forget: email failure must never break the main flow.
-export async function sendMail(to, subject, title, bodyHtml) {
+// attachments: optional nodemailer-format array, e.g. [{ filename, content: Buffer }]
+export async function sendMail(to, subject, title, bodyHtml, attachments) {
   try {
     if (!to) return { sent: false, reason: 'no recipient' };
     const cfg = await getSmtpConfig();
@@ -44,6 +45,7 @@ export async function sendMail(to, subject, title, bodyHtml) {
       to,
       subject,
       html: wrap(title, bodyHtml),
+      attachments: attachments?.length ? attachments : undefined,
     });
     return { sent: true };
   } catch (e) {
@@ -88,11 +90,12 @@ export const templates = {
      ${note ? `<p><strong>Details:</strong> ${note}</p>` : ''}
      <p>Please contact the society office to update your details.</p>`,
   ],
-  paid: (app) => [
+  paid: (app, receiptNumber) => [
     `Payment Received — ${app.reference_no}`,
     'Payment Received',
     `<p>Dear <strong>${app.name}</strong>,</p>
      <p>We have received your membership fee payment of <strong>₹${app.membership_fee}</strong>. Thank you!</p>
-     ${app.membership_id ? `<p><strong>Membership ID:</strong> ${app.membership_id}<br><strong>Status:</strong> ${app.status}</p>` : ''}`,
+     ${app.membership_id ? `<p><strong>Membership ID:</strong> ${app.membership_id}<br><strong>Status:</strong> ${app.status}</p>` : ''}
+     ${receiptNumber ? `<p>Your receipt (<strong>${receiptNumber}</strong>) is attached to this e-mail.</p>` : ''}`,
   ],
 };

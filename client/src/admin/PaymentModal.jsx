@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react';
-import { api } from '../api.js';
+import { api, getSession } from '../api.js';
 
 /**
  * Payment dialog used for: recording a payment (mode 'record'),
- * the approve flow (mode 'approve': record+approve or approve only),
+ * the approve flow (mode 'approve': verifying payment is now required to approve),
  * and editing an existing payment (mode 'edit').
  */
 export default function PaymentModal({ mode, app, payment, onClose, onDone }) {
   const [plans, setPlans] = useState([]);
   const [methods, setMethods] = useState([]);
+  const [collectors, setCollectors] = useState([]);
   const [amountChoice, setAmountChoice] = useState('');
   const [customAmount, setCustomAmount] = useState('');
   const [method, setMethod] = useState(payment?.method || '');
+  const [collectedBy, setCollectedBy] = useState(payment?.collected_by || getSession()?.username || '');
   const [paidOn, setPaidOn] = useState(payment?.paid_on || new Date().toISOString().slice(0, 10));
   const [note, setNote] = useState(payment?.note || '');
   const [receipt, setReceipt] = useState(null);
@@ -21,9 +23,10 @@ export default function PaymentModal({ mode, app, payment, onClose, onDone }) {
   useEffect(() => {
     (async () => {
       try {
-        const cfg = await api.formConfig();
+        const [cfg, collectorList] = await Promise.all([api.formConfig(), api.listCollectors()]);
         setPlans(cfg.plans || []);
         setMethods(cfg.options?.payment_method || ['Cash', 'Bank Transfer', 'Google Pay', 'UPI', 'Cheque']);
+        setCollectors(collectorList || []);
         const registeredFee = payment?.amount != null
           ? Number(payment.amount)
           : Number(app?.membership_fee ?? cfg.plans?.find((p) => p.code === app?.membership_type)?.fee ?? '');
@@ -40,6 +43,7 @@ export default function PaymentModal({ mode, app, payment, onClose, onDone }) {
     const fd = new FormData();
     fd.append('amount', amount);
     fd.append('method', method);
+    fd.append('collected_by', collectedBy);
     fd.append('paid_on', paidOn);
     if (note.trim()) fd.append('note', note.trim());
     if (receipt) fd.append('receipt', receipt);
@@ -49,11 +53,12 @@ export default function PaymentModal({ mode, app, payment, onClose, onDone }) {
   const validate = () => {
     if (!(Number(amount) > 0)) { setError('Enter a valid amount.'); return false; }
     if (!method) { setError('Select a payment method.'); return false; }
+    if (!collectedBy) { setError('Select who collected the cash.'); return false; }
     if (!paidOn) { setError('Select the payment date.'); return false; }
     return true;
   };
 
-  const submitPayment = async (withApprove) => {
+  const submitPayment = async () => {
     setError(null);
     if (!validate()) return;
     setBusy(true);
@@ -63,18 +68,9 @@ export default function PaymentModal({ mode, app, payment, onClose, onDone }) {
       } else {
         const fd = buildForm();
         fd.append('application_id', app.id);
-        if (withApprove) fd.append('approve', '1');
+        if (mode === 'approve') fd.append('approve', '1');
         await api.createPayment(fd);
       }
-      onDone();
-    } catch (err) { setError(err.message); setBusy(false); }
-  };
-
-  const approveOnly = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await api.action(app.id, 'approve');
       onDone();
     } catch (err) { setError(err.message); setBusy(false); }
   };
@@ -92,13 +88,13 @@ export default function PaymentModal({ mode, app, payment, onClose, onDone }) {
       <div className="crop-modal" style={{ maxWidth: 500 }}>
         <div className="crop-head">
           <h3>
-            {mode === 'approve' && 'Approve — Record payment now?'}
+            {mode === 'approve' && 'Payment Verification & Approval'}
             {mode === 'record' && 'Record Payment'}
             {mode === 'edit' && 'Edit Payment'}
           </h3>
           <p>
             {app?.name}{app?.membership_id ? ` · ${app.membership_id}` : ''}
-            {mode === 'approve' && ' — the membership ID is generated either way.'}
+            {mode === 'approve' && ' — payment must be verified to approve.'}
           </p>
         </div>
         <div style={{ padding: '16px 20px', maxHeight: '58vh', overflowY: 'auto' }}>
@@ -131,9 +127,16 @@ export default function PaymentModal({ mode, app, payment, onClose, onDone }) {
               </select>
             </div>
             <div className="field">
-              <label>Payment Date <span className="req">*</span></label>
-              <input type="date" value={paidOn} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setPaidOn(e.target.value)} />
+              <label>Cash Collected By <span className="req">*</span></label>
+              <select value={collectedBy} onChange={(e) => setCollectedBy(e.target.value)}>
+                <option value="" disabled>Select user…</option>
+                {collectors.map((c) => <option key={c.username} value={c.username}>{c.name}</option>)}
+              </select>
             </div>
+          </div>
+          <div className="field">
+            <label>Payment Date <span className="req">*</span></label>
+            <input type="date" value={paidOn} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setPaidOn(e.target.value)} />
           </div>
           <div className="field">
             <label>Note</label>
@@ -150,14 +153,9 @@ export default function PaymentModal({ mode, app, payment, onClose, onDone }) {
         </div>
         <div className="crop-actions" style={{ flexWrap: 'wrap' }}>
           <button className="btn btn-outline btn-sm" onClick={onClose} disabled={busy}>Cancel</button>
-          {mode === 'approve' && (
-            <button className="btn btn-outline btn-sm" onClick={approveOnly} disabled={busy}>
-              Approve Only (payment later)
-            </button>
-          )}
-          <button className="btn btn-green btn-sm" onClick={() => submitPayment(mode === 'approve')} disabled={busy}>
+          <button className="btn btn-green btn-sm" onClick={submitPayment} disabled={busy}>
             {busy ? 'Saving…' :
-              mode === 'approve' ? '₹ Record Payment & Approve' :
+              mode === 'approve' ? 'Payment Verify and Approve' :
               mode === 'edit' ? 'Save Changes' : '₹ Record Payment'}
           </button>
         </div>

@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 import { pool } from '../db.js';
 import { requireAdmin, requireScreen, screensForUser } from '../middleware/auth.js';
 import { sendMail, templates } from '../mailer.js';
+import { buildReceiptPdf } from '../receiptPdf.js';
 
 const router = express.Router();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -176,7 +177,7 @@ router.delete('/applications/:id/purge', requireScreen('members'), async (req, r
 
 const EDITABLE_FIELDS = [
   'name', 'father_name', 'house_name', 'place', 'post_office', 'panchayath', 'blood_group',
-  'date_of_birth', 'aadhaar_number', 'qualification', 'phone_abroad', 'id_card_number_abroad',
+  'date_of_birth', 'aadhaar_number', 'qualification', 'phone_abroad', 'home_contact_number', 'id_card_number_abroad',
   'working_country', 'city', 'retired_year', 'phone_india', 'whatsapp_number', 'email',
   'current_job', 'years_abroad', 'emergency_name', 'emergency_phone',
 ];
@@ -219,6 +220,17 @@ router.put('/applications/:id', requireScreen('members'), async (req, res, next)
     const result = fresh[0];
     result.aadhaar_masked = maskAadhaar(result.aadhaar_number);
     res.json({ application: result });
+  } catch (e) { next(e); }
+});
+
+// Lightweight lookup for the "Cash Collected By" dropdown — any logged-in dashboard user
+// needs this (not gated by the 'users' screen, which is admin-only).
+router.get('/users/collectors', async (req, res, next) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT username, full_name FROM admins WHERE is_active = 1 ORDER BY COALESCE(full_name, username)'
+    );
+    res.json(rows.map((r) => ({ username: r.username, name: r.full_name || r.username })));
   } catch (e) { next(e); }
 });
 
@@ -282,11 +294,12 @@ router.post(
   receiptUpload.single('receipt'),
   (req, res, next) => requireScreen(req.body?.approve === '1' ? 'approvals' : 'payments')(req, res, next),
   async (req, res, next) => {
-    const { application_id, amount, method, paid_on, note, approve } = req.body || {};
+    const { application_id, amount, method, paid_on, note, approve, collected_by } = req.body || {};
     const amt = Number(amount);
     if (!application_id || !(amt > 0)) return res.status(400).json({ error: 'A valid amount is required' });
     if (!method?.trim()) return res.status(400).json({ error: 'Payment method is required' });
     if (!paid_on || isNaN(Date.parse(paid_on))) return res.status(400).json({ error: 'Payment date is invalid' });
+    if (!collected_by?.trim()) return res.status(400).json({ error: 'Cash Collected By is required' });
 
     const conn = await pool.getConnection();
     try {
@@ -324,9 +337,10 @@ router.post(
       }
 
       const receiptDocId = req.file ? await insertReceiptDoc(conn, app.id, req.file) : null;
+      const receiptNumber = await generateReceiptNumber(conn);
       await conn.query(
-        'INSERT INTO payments (application_id, amount, method, paid_on, note, receipt_doc_id, recorded_by) VALUES (?,?,?,?,?,?,?)',
-        [app.id, amt, method.trim(), paid_on, note?.trim() || null, receiptDocId, req.admin.username]
+        'INSERT INTO payments (application_id, amount, method, paid_on, note, receipt_doc_id, recorded_by, receipt_number, collected_by) VALUES (?,?,?,?,?,?,?,?,?)',
+        [app.id, amt, method.trim(), paid_on, note?.trim() || null, receiptDocId, req.admin.username, receiptNumber, collected_by.trim()]
       );
 
       const newStatus = approvedNow || (membershipId && ['Payment Pending', 'Approved'].includes(app.status))
@@ -347,8 +361,21 @@ router.post(
           const [s1, t1, b1] = templates.approved(result);
           sendMail(result.email, s1, t1, b1);
         }
-        const [s2, t2, b2] = templates.paid(result);
-        sendMail(result.email, s2, t2, b2);
+        const [[planRow]] = await pool.query('SELECT name FROM membership_plans WHERE code = ?', [result.membership_type]);
+        try {
+          const pdf = await buildReceiptPdf({
+            payment: { receipt_number: receiptNumber, amount: amt, method: method.trim(), paid_on, note: note?.trim() || null, collected_by: collected_by.trim() },
+            application: result,
+            planName: planRow?.name || result.membership_type,
+            societyName: 'REACH Pravasi Welfare Society',
+          });
+          const [s2, t2, b2] = templates.paid(result, receiptNumber);
+          sendMail(result.email, s2, t2, b2, [{ filename: `${receiptNumber}.pdf`, content: pdf }]);
+        } catch (e) {
+          console.error('Receipt PDF generation failed:', e.message);
+          const [s2, t2, b2] = templates.paid(result);
+          sendMail(result.email, s2, t2, b2);
+        }
       }
       result.aadhaar_masked = maskAadhaar(result.aadhaar_number);
       res.status(201).json({ application: result });
@@ -365,13 +392,14 @@ router.put('/payments/:id', receiptUpload.single('receipt'), requireScreen('paym
   const conn = await pool.getConnection();
   try {
     if (req.adminUser.role !== 'admin') { conn.release(); return res.status(403).json({ error: 'Only administrators can edit payments' }); }
-    const { amount, method, paid_on, note } = req.body || {};
+    const { amount, method, paid_on, note, collected_by } = req.body || {};
     await conn.beginTransaction();
     const [rows] = await conn.query('SELECT * FROM payments WHERE id = ? FOR UPDATE', [req.params.id]);
     if (!rows.length) { await conn.rollback(); return res.status(404).json({ error: 'Payment not found' }); }
     const p = rows[0];
     const amt = amount !== undefined ? Number(amount) : Number(p.amount);
     if (!(amt > 0)) { await conn.rollback(); return res.status(400).json({ error: 'A valid amount is required' }); }
+    if (collected_by !== undefined && !collected_by.trim()) { await conn.rollback(); return res.status(400).json({ error: 'Cash Collected By is required' }); }
 
     let receiptDocId = p.receipt_doc_id;
     if (req.file) {
@@ -379,8 +407,9 @@ router.put('/payments/:id', receiptUpload.single('receipt'), requireScreen('paym
       receiptDocId = await insertReceiptDoc(conn, p.application_id, req.file);
     }
     await conn.query(
-      'UPDATE payments SET amount = ?, method = ?, paid_on = ?, note = ?, receipt_doc_id = ? WHERE id = ?',
-      [amt, (method ?? p.method).trim(), paid_on || p.paid_on, note !== undefined ? (note.trim() || null) : p.note, receiptDocId, p.id]
+      'UPDATE payments SET amount = ?, method = ?, paid_on = ?, note = ?, receipt_doc_id = ?, collected_by = ? WHERE id = ?',
+      [amt, (method ?? p.method).trim(), paid_on || p.paid_on, note !== undefined ? (note.trim() || null) : p.note, receiptDocId,
+       collected_by !== undefined ? collected_by.trim() : p.collected_by, p.id]
     );
     await conn.query('INSERT INTO status_history (application_id, action, detail, actor) VALUES (?,?,?,?)',
       [p.application_id, 'Payment Edited', `₹${amt.toLocaleString('en-IN')} via ${(method ?? p.method).trim()}`, req.admin.username]);
@@ -421,6 +450,49 @@ router.delete('/payments/:id', requireScreen('payments'), async (req, res, next)
   } finally {
     conn.release();
   }
+});
+
+/* ===================== Receipts ===================== */
+
+router.get('/receipts', requireScreen('payments'), async (req, res, next) => {
+  try {
+    const { search } = req.query;
+    let sql = `SELECT p.id, p.receipt_number, p.amount, p.method, p.paid_on, p.recorded_by, p.collected_by, p.created_at,
+                      a.id AS application_id, a.name, a.reference_no, a.membership_id, a.membership_type, a.email
+               FROM payments p JOIN applications a ON a.id = p.application_id
+               WHERE a.deleted_at IS NULL AND p.receipt_number IS NOT NULL`;
+    const params = [];
+    if (search) {
+      sql += ' AND (a.name LIKE ? OR a.reference_no LIKE ? OR a.membership_id LIKE ? OR p.receipt_number LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+    }
+    sql += ' ORDER BY p.paid_on DESC, p.id DESC LIMIT 500';
+    const [rows] = await pool.query(sql, params);
+    res.json(rows);
+  } catch (e) { next(e); }
+});
+
+router.get('/receipts/:paymentId/pdf', requireScreen('payments'), async (req, res, next) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT p.*, a.name, a.reference_no, a.membership_id, a.membership_type
+       FROM payments p JOIN applications a ON a.id = p.application_id
+       WHERE p.id = ? AND p.receipt_number IS NOT NULL`,
+      [req.params.paymentId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Receipt not found' });
+    const p = rows[0];
+    const [[plan]] = await pool.query('SELECT name FROM membership_plans WHERE code = ?', [p.membership_type]);
+    const pdf = await buildReceiptPdf({
+      payment: p,
+      application: p,
+      planName: plan?.name || p.membership_type,
+      societyName: 'REACH Pravasi Welfare Society',
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${p.receipt_number}.pdf"`);
+    res.send(pdf);
+  } catch (e) { next(e); }
 });
 
 // Society-wide member counter kept in the settings table (row-locked inside the approve transaction).
@@ -465,6 +537,31 @@ async function generateMembershipId(conn, app) {
     if (!n) return id;
   }
   throw new Error('Could not generate a unique membership ID');
+}
+
+// Society-wide receipt counter, same bootstrap pattern as nextMemberSeq.
+async function nextReceiptSeq(conn) {
+  const [rows] = await conn.query("SELECT value FROM settings WHERE name = 'receipt_seq' FOR UPDATE");
+  let next;
+  if (rows.length) {
+    try { next = Number(JSON.parse(rows[0].value).next) || 1; } catch { next = 1; }
+    await conn.query("UPDATE settings SET value = ? WHERE name = 'receipt_seq'", [JSON.stringify({ next: next + 1 })]);
+  } else {
+    const [[{ n }]] = await conn.query('SELECT COUNT(*) AS n FROM payments WHERE receipt_number IS NOT NULL');
+    next = n + 1;
+    await conn.query("INSERT INTO settings (name, value) VALUES ('receipt_seq', ?)", [JSON.stringify({ next: next + 1 })]);
+  }
+  return next;
+}
+
+async function generateReceiptNumber(conn) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const seq = await nextReceiptSeq(conn);
+    const id = `RCPT-${new Date().getFullYear()}-${String(seq).padStart(4, '0')}`;
+    const [[{ n }]] = await conn.query('SELECT COUNT(*) AS n FROM payments WHERE receipt_number = ?', [id]);
+    if (!n) return id;
+  }
+  throw new Error('Could not generate a unique receipt number');
 }
 
 const ACTION_SCREEN = {

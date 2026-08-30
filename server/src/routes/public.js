@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { pool } from '../db.js';
 import { sendMail, templates } from '../mailer.js';
 import { mergeHomeContent } from '../homeContent.js';
+import { getLogoPath } from '../branding.js';
 
 const router = express.Router();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -36,28 +37,13 @@ const upload = multer({
   },
 });
 
-const BRANDING_DIR = path.join(__dirname, '..', '..', 'branding');
-
 // Public: current society logo (uploaded via Settings, falling back to the default).
 router.get('/logo', async (req, res) => {
-  let file = 'logo_default.jpeg';
-  let mime = 'image/jpeg';
-  try {
-    const [rows] = await pool.query("SELECT value FROM settings WHERE name = 'logo'");
-    if (rows.length) {
-      const cfg = JSON.parse(rows[0].value);
-      if (cfg.file && fsExistsInBranding(cfg.file)) { file = cfg.file; mime = cfg.mime || 'image/jpeg'; }
-    }
-  } catch { /* fall back to default */ }
-  res.setHeader('Content-Type', mime);
+  const logoPath = await getLogoPath();
+  res.setHeader('Content-Type', logoPath.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg');
   res.setHeader('Cache-Control', 'no-cache');
-  res.sendFile(path.join(BRANDING_DIR, path.basename(file)));
+  res.sendFile(logoPath);
 });
-
-import fs from 'fs';
-function fsExistsInBranding(file) {
-  try { return fs.existsSync(path.join(BRANDING_DIR, path.basename(file))); } catch { return false; }
-}
 
 // Public: home page content (hero, about, activities, contact details, footer) from the settings table.
 router.get('/home-content', async (req, res, next) => {
@@ -156,6 +142,7 @@ router.post(
 
       if (isExpat) {
         reqText('phone_abroad', d.phone_abroad, 'Phone number (abroad)');
+        reqText('home_contact_number', d.home_contact_number, 'Home contact number');
         reqText('id_card_number_abroad', d.id_card_number_abroad, 'ID card number (abroad)');
         reqText('working_country', d.working_country, 'Working country');
         reqText('city', d.city, 'City');
@@ -204,10 +191,10 @@ router.post(
           `INSERT INTO applications
             (reference_no, membership_type, membership_fee, name, father_name, house_name, place, post_office,
              panchayath, blood_group, date_of_birth, aadhaar_number, qualification, is_expat,
-             phone_abroad, id_card_number_abroad, working_country, city, retired_year, phone_india,
+             phone_abroad, home_contact_number, id_card_number_abroad, working_country, city, retired_year, phone_india,
              whatsapp_number, email, current_job, years_abroad, emergency_name, emergency_phone,
              custom_data, status, payment_status, consent_accepted)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'Pending Verification', 'Unpaid', 1)`,
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'Pending Verification', 'Unpaid', 1)`,
           [
             referenceNo, plan.code, fee,
             (d.name || '').trim(), (d.father_name || '').trim(), (d.house_name || '').trim(),
@@ -215,6 +202,7 @@ router.post(
             d.blood_group || '', d.date_of_birth || null,
             aadhaar, (d.qualification || '').trim(), isExpat ? 1 : 0,
             isExpat ? d.phone_abroad || null : null,
+            isExpat ? d.home_contact_number || null : null,
             isExpat ? d.id_card_number_abroad || null : null,
             isExpat ? d.working_country || null : null,
             isExpat ? d.city || null : null,

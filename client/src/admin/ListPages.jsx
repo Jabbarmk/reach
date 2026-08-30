@@ -103,7 +103,7 @@ function MemberEditModal({ id, onClose, onSaved }) {
         'name', 'father_name', 'house_name', 'place', 'post_office', 'panchayath', 'blood_group',
         'date_of_birth', 'aadhaar_number', 'qualification', 'whatsapp_number', 'email', 'current_job',
         'years_abroad', 'emergency_name', 'emergency_phone',
-        ...(app.is_expat ? ['phone_abroad', 'id_card_number_abroad', 'working_country', 'city'] : ['retired_year', 'phone_india']),
+        ...(app.is_expat ? ['phone_abroad', 'home_contact_number', 'id_card_number_abroad', 'working_country', 'city'] : ['retired_year', 'phone_india']),
       ];
       keys.forEach((k) => { payload[k] = app[k] ?? ''; });
       await api.updateApplication(id, payload);
@@ -156,6 +156,7 @@ function MemberEditModal({ id, onClose, onSaved }) {
               {app.is_expat ? (
                 <>
                   <div className="field"><label>Phone (Abroad)</label><input type="text" value={app.phone_abroad ?? ''} onChange={(e) => set('phone_abroad', e.target.value)} /></div>
+                  <div className="field"><label>Home Contact Number</label><input type="text" value={app.home_contact_number ?? ''} onChange={(e) => set('home_contact_number', e.target.value)} /></div>
                   <div className="field"><label>ID Number (Abroad)</label><input type="text" value={app.id_card_number_abroad ?? ''} onChange={(e) => set('id_card_number_abroad', e.target.value)} /></div>
                   <div className="field">
                     <label>Working Country</label>
@@ -194,8 +195,29 @@ function usePersisted(key, initial) {
   return [value, setValue];
 }
 
+function MembersSummary({ stats }) {
+  if (!stats) return null;
+  const count = (name) => stats.byStatus.find((r) => r.status === name)?.count || 0;
+  const items = [
+    { label: 'Total', value: stats.total, tone: '' },
+    { label: 'Active', value: count('Active'), tone: 'green' },
+    { label: 'Pending', value: stats.pending, tone: 'orange' },
+    { label: 'Payment Due', value: count('Payment Pending'), tone: 'blue' },
+  ];
+  return (
+    <div className="mini-stats">
+      {items.map((it) => (
+        <div key={it.label} className={`mini-stat ${it.tone}`}>
+          <span className="n">{it.value ?? '–'}</span>
+          <span className="l">{it.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function MembersPage() {
-  const { session, refreshStats } = useOutletContext();
+  const { session, refreshStats, stats } = useOutletContext();
   const isAdmin = session?.role === 'admin';
   const [tab, setTab] = useState('members');
   const ctl = useApps('All', tab === 'deleted' ? { deleted: '1' } : {});
@@ -271,7 +293,9 @@ export function MembersPage() {
 
   return (
     <>
-      <PageHead title="Members" sub="All membership applications and registered members." />
+      <PageHead title="Members" sub="All membership applications and registered members.">
+        <MembersSummary stats={stats} />
+      </PageHead>
       {isAdmin && (
         <div className="tab-row">
           <button className={`tab ${tab === 'members' ? 'active' : ''}`} onClick={() => setTab('members')}>Members</button>

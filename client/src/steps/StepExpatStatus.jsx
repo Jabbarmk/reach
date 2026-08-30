@@ -33,7 +33,7 @@ export default function StepExpatStatus({ data, setField, error }) {
 
   return (
     <div className="card">
-      <h2>12. Are you currently an Expat?</h2>
+      <h2>Are you currently an Expat?</h2>
       <p className="sub">This decides which details we ask for in the next step.</p>
 
       <div className="choice-grid" role="radiogroup" aria-label="Expat status">

@@ -46,7 +46,11 @@ export const api = {
   updatePayment: (id, formData) => request(`/api/admin/payments/${id}`, { method: 'PUT', body: formData }),
   deletePayment: (id) => request(`/api/admin/payments/${id}`, { method: 'DELETE' }),
   docUrl: (id) => `/api/admin/documents/${id}/file`,
+  // Receipts
+  listReceipts: (params = {}) => request(`/api/admin/receipts?${new URLSearchParams(params)}`),
+  receiptUrl: (paymentId) => `/api/admin/receipts/${paymentId}/pdf`,
   // Users
+  listCollectors: () => request('/api/admin/users/collectors'),
   listUsers: () => request('/api/admin/users'),
   createUser: (u) => request('/api/admin/users', { method: 'POST', json: u }),
   updateUser: (id, u) => request(`/api/admin/users/${id}`, { method: 'PUT', json: u }),
@@ -90,4 +94,20 @@ export async function fetchDocBlob(docId) {
   const res = await fetch(api.docUrl(docId), { headers: { Authorization: `Bearer ${getToken()}` } });
   if (!res.ok) throw new Error('Could not load document');
   return URL.createObjectURL(await res.blob());
+}
+
+export async function fetchReceiptBlob(paymentId) {
+  const res = await fetch(api.receiptUrl(paymentId), { headers: { Authorization: `Bearer ${getToken()}` } });
+  if (!res.ok) throw new Error('Could not load receipt');
+  return URL.createObjectURL(await res.blob());
+}
+
+// Fetches an authenticated blob URL and triggers a browser download/save-as with the given filename.
+export function downloadBlob(blobUrl, filename) {
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }

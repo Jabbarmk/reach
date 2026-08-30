@@ -439,6 +439,19 @@ img { max-width: 100%; }
 .btn-sm { padding: 7px 14px; font-size: 13px; border-radius: 8px; }
 .wizard-nav { display: flex; justify-content: space-between; margin-top: 26px; gap: 12px; }
 
+.reg-sections { display: flex; flex-direction: column; gap: 22px; }
+.declaration-box {
+  background: var(--blue-50); border: 1.5px solid var(--blue-100); border-radius: 12px;
+  padding: 16px 20px; margin-bottom: 18px;
+}
+.declaration-box h3 { font-size: 15px; color: var(--blue-900); margin-bottom: 10px; }
+.declaration-box p { font-size: 14px; color: var(--ink); line-height: 1.75; margin-bottom: 10px; }
+.declaration-box p:last-child { margin-bottom: 0; }
+.reg-intro { margin-bottom: 22px; }
+.reg-intro h1 { font-size: 26px; color: var(--blue-900); margin-bottom: 6px; }
+.reg-intro p { color: var(--muted); font-size: 14.5px; }
+@media (max-width: 640px) { .reg-intro h1 { font-size: 21px; } }
+
 /* ============ Review ============ */
 .review-block { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; margin-bottom: 16px; }
 .review-block .rb-head {
@@ -568,6 +581,19 @@ img { max-width: 100%; }
 .ovr-head h1 { font-size: 30px; color: var(--blue-800); line-height: 1.15; }
 .ovr-head p { color: var(--muted); margin-top: 6px; font-size: 14.5px; }
 @media (max-width: 640px) { .ovr-head h1 { font-size: 23px; } }
+
+.mini-stats { display: flex; gap: 10px; flex-wrap: wrap; }
+.mini-stat {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-width: 78px; padding: 8px 16px; border-radius: 12px;
+  background: #fff; border: 1px solid var(--line); box-shadow: var(--shadow);
+}
+.mini-stat .n { font-size: 20px; font-weight: 800; color: var(--blue-900); line-height: 1.2; }
+.mini-stat .l { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; margin-top: 2px; }
+.mini-stat.green .n { color: var(--green-600); }
+.mini-stat.orange .n { color: var(--orange-500); }
+.mini-stat.blue .n { color: var(--blue-700); }
+@media (max-width: 640px) { .mini-stats { width: 100%; } .mini-stat { flex: 1; min-width: 0; padding: 7px 10px; } }
 
 .ovr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px; margin-bottom: 30px; }
 .ovr-card {
