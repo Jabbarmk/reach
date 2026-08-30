@@ -52,6 +52,8 @@ export const api = {
   // Users
   listCollectors: () => request('/api/admin/users/collectors'),
   listUsers: () => request('/api/admin/users'),
+  listRoles: () => request('/api/admin/users/roles'),
+  createRole: (r) => request('/api/admin/users/roles', { method: 'POST', json: r }),
   createUser: (u) => request('/api/admin/users', { method: 'POST', json: u }),
   updateUser: (id, u) => request(`/api/admin/users/${id}`, { method: 'PUT', json: u }),
   deleteUser: (id) => request(`/api/admin/users/${id}`, { method: 'DELETE' }),

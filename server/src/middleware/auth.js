@@ -3,11 +3,24 @@ import { pool } from '../db.js';
 
 export const ALL_SCREENS = ['overview', 'members', 'approvals', 'payments', 'events', 'settings', 'users', 'form'];
 
-export const ROLE_DEFAULT_SCREENS = {
-  admin: ALL_SCREENS,
-  staff: ['overview', 'members', 'approvals'],
-  accounts: ['overview', 'members', 'payments'],
-};
+// In-memory cache of roles.name -> { label, screens }. Roles rarely change, so we cache them
+// instead of hitting the DB on every request; refreshed on startup and whenever a role is created.
+let roleCache = {};
+
+export async function loadRoles() {
+  const [rows] = await pool.query('SELECT name, label, screens FROM roles ORDER BY sort_order, id');
+  const map = {};
+  for (const r of rows) {
+    let screens = [];
+    try { screens = JSON.parse(r.screens).filter((s) => ALL_SCREENS.includes(s)); } catch { /* keep empty */ }
+    map[r.name] = { label: r.label, screens };
+  }
+  roleCache = map;
+  return map;
+}
+
+export const getRolesCache = () => roleCache;
+export const getRoleDefaults = (roleName) => roleCache[roleName]?.screens || [];
 
 export function screensForUser(user) {
   if (user.screens) {
@@ -16,7 +29,7 @@ export function screensForUser(user) {
       if (Array.isArray(list) && list.length) return list.filter((s) => ALL_SCREENS.includes(s));
     } catch { /* fall through to role default */ }
   }
-  return ROLE_DEFAULT_SCREENS[user.role] || [];
+  return getRoleDefaults(user.role);
 }
 
 export function requireAdmin(req, res, next) {

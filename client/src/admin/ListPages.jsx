@@ -351,22 +351,72 @@ export function ApprovalsPage() {
   );
 }
 
+function PaymentsSummary({ rows }) {
+  if (!rows) return null;
+  const total = rows.reduce((s, p) => s + Number(p.amount), 0);
+  const now = new Date();
+  const thisMonth = rows
+    .filter((p) => { const d = new Date(p.paid_on); return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); })
+    .reduce((s, p) => s + Number(p.amount), 0);
+  const avg = rows.length ? total / rows.length : 0;
+  const items = [
+    { label: 'Total Collected', value: `₹${total.toLocaleString('en-IN')}`, tone: '' },
+    { label: 'Payments', value: rows.length, tone: 'blue' },
+    { label: 'This Month', value: `₹${thisMonth.toLocaleString('en-IN')}`, tone: 'green' },
+    { label: 'Avg. Payment', value: `₹${Math.round(avg).toLocaleString('en-IN')}`, tone: 'orange' },
+  ];
+  return (
+    <div className="mini-stats" style={{ marginBottom: 16 }}>
+      {items.map((it) => (
+        <div key={it.label} className={`mini-stat ${it.tone}`}>
+          <span className="n">{it.value}</span>
+          <span className="l">{it.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ReceivedPaymentsTab({ isAdmin }) {
   const [rows, setRows] = useState(null);
   const [search, setSearch] = useState('');
+  const [methodFilter, setMethodFilter] = useState('');
+  const [collectedByFilter, setCollectedByFilter] = useState('');
+  const [recordedByFilter, setRecordedByFilter] = useState('');
+  const [methods, setMethods] = useState([]);
+  const [users, setUsers] = useState([]);
   const [error, setError] = useState(null);
   const [editPayment, setEditPayment] = useState(null);
   const navigate = useNavigate();
 
-  const load = async (q = search) => {
+  const filters = () => ({
+    ...(search ? { search } : {}),
+    ...(methodFilter ? { method: methodFilter } : {}),
+    ...(collectedByFilter ? { collected_by: collectedByFilter } : {}),
+    ...(recordedByFilter ? { recorded_by: recordedByFilter } : {}),
+  });
+
+  const load = async () => {
     setError(null);
-    try { setRows(await api.listPayments(q ? { search: q } : {})); }
+    try { setRows(await api.listPayments(filters())); }
     catch (err) {
       if (err.status === 401) { setToken(null); navigate('/admin/login'); return; }
       setError(err.message);
     }
   };
-  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    (async () => {
+      try {
+        const [cfg, collectors] = await Promise.all([api.formConfig(), api.listCollectors()]);
+        setMethods(cfg.options?.payment_method || []);
+        setUsers(collectors || []);
+      } catch { /* filters just stay empty */ }
+    })();
+    load();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [methodFilter, collectedByFilter, recordedByFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const userName = (username) => users.find((u) => u.username === username)?.name || username;
 
   const viewReceipt = async (p) => {
     try {
@@ -380,16 +430,33 @@ function ReceivedPaymentsTab({ isAdmin }) {
     try { await api.deletePayment(p.id); load(); } catch (err) { setError(err.message); }
   };
 
+  const clearFilters = () => { setSearch(''); setMethodFilter(''); setCollectedByFilter(''); setRecordedByFilter(''); };
+  const filtersActive = methodFilter || collectedByFilter || recordedByFilter;
+
   return (
     <>
       {error && <div className="alert error">{error}</div>}
+      <PaymentsSummary rows={rows} />
       <div className="toolbar">
         <input
-          placeholder="Search by name, reference no or membership ID…"
+          placeholder="Search by name, reference no, membership ID or receipt no…"
           value={search} onChange={(e) => setSearch(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && load()}
         />
+        <select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)}>
+          <option value="">All Methods</option>
+          {methods.map((m) => <option key={m} value={m}>{m}</option>)}
+        </select>
+        <select value={collectedByFilter} onChange={(e) => setCollectedByFilter(e.target.value)}>
+          <option value="">Collected By: Anyone</option>
+          {users.map((u) => <option key={u.username} value={u.username}>{u.name}</option>)}
+        </select>
+        <select value={recordedByFilter} onChange={(e) => setRecordedByFilter(e.target.value)}>
+          <option value="">Recorded By: Anyone</option>
+          {users.map((u) => <option key={u.username} value={u.username}>{u.name}</option>)}
+        </select>
         <button className="btn btn-primary btn-sm" onClick={() => load()}>Search</button>
+        {filtersActive && <button className="btn btn-ghost btn-sm" onClick={clearFilters}>Clear filters</button>}
       </div>
       <div className="table-card">
         <div className="table-scroll">
@@ -397,7 +464,7 @@ function ReceivedPaymentsTab({ isAdmin }) {
             <thead>
               <tr>
                 <th>Member</th><th>Membership ID</th><th>Amount</th><th>Method</th>
-                <th>Date</th><th>Recorded By</th><th>Receipt</th>
+                <th>Collected By</th><th>Date</th><th>Recorded By</th><th>Receipt</th>
                 {isAdmin && <th style={{ width: 120 }}>Actions</th>}
               </tr>
             </thead>
@@ -408,8 +475,9 @@ function ReceivedPaymentsTab({ isAdmin }) {
                   <td style={{ color: 'var(--blue-800)', fontWeight: 700 }}>{p.membership_id || p.reference_no}</td>
                   <td style={{ fontWeight: 700 }}>₹{Number(p.amount).toLocaleString('en-IN')}</td>
                   <td>{p.method}</td>
+                  <td>{p.collected_by ? userName(p.collected_by) : '—'}</td>
                   <td>{p.paid_on}</td>
-                  <td>{p.recorded_by}</td>
+                  <td>{userName(p.recorded_by)}</td>
                   <td onClick={(e) => e.stopPropagation()} style={{ cursor: 'default' }}>
                     {p.receipt_doc_id
                       ? <button className="btn btn-outline btn-sm" onClick={() => viewReceipt(p)}>📄 View</button>
@@ -428,7 +496,7 @@ function ReceivedPaymentsTab({ isAdmin }) {
             </tbody>
           </table>
         </div>
-        {rows && rows.length === 0 && <div className="empty-note">No payments recorded yet.</div>}
+        {rows && rows.length === 0 && <div className="empty-note">{filtersActive || search ? 'No payments match these filters.' : 'No payments recorded yet.'}</div>}
         {!rows && !error && <div className="empty-note"><span className="spinner lg" /></div>}
       </div>
       {editPayment && (
@@ -447,7 +515,7 @@ function ReceivedPaymentsTab({ isAdmin }) {
 export function PaymentsPage() {
   const { session, refreshStats } = useOutletContext();
   const isAdmin = session?.role === 'admin';
-  const [tab, setTab] = useState('due');
+  const [tab, setTab] = useState('received');
   const ctl = useApps('Payment Pending');
   const [recordFor, setRecordFor] = useState(null);
 

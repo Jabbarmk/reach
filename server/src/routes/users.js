@@ -1,7 +1,7 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import { pool } from '../db.js';
-import { requireAdmin, requireScreen, ALL_SCREENS, ROLE_DEFAULT_SCREENS, screensForUser } from '../middleware/auth.js';
+import { requireAdmin, requireScreen, ALL_SCREENS, getRolesCache, getRoleDefaults, screensForUser, loadRoles } from '../middleware/auth.js';
 
 const router = express.Router();
 router.use(requireAdmin, requireScreen('users'));
@@ -17,17 +17,51 @@ const publicUser = (u) => ({
   created_at: u.created_at,
 });
 
+const roleDefaultsMap = () => Object.fromEntries(Object.entries(getRolesCache()).map(([name, r]) => [name, r.screens]));
+const rolesList = () => Object.entries(getRolesCache()).map(([name, r]) => ({ name, label: r.label }));
+
 router.get('/', async (req, res, next) => {
   try {
     const [rows] = await pool.query('SELECT * FROM admins ORDER BY created_at ASC');
-    res.json({ users: rows.map(publicUser), roleDefaults: ROLE_DEFAULT_SCREENS, allScreens: ALL_SCREENS });
+    res.json({ users: rows.map(publicUser), roleDefaults: roleDefaultsMap(), allScreens: ALL_SCREENS, roles: rolesList() });
+  } catch (e) { next(e); }
+});
+
+/* ===== Roles ===== */
+router.get('/roles', async (req, res, next) => {
+  try {
+    const [rows] = await pool.query('SELECT name, label, screens, is_system FROM roles ORDER BY sort_order, id');
+    res.json({ roles: rows.map((r) => ({ name: r.name, label: r.label, screens: JSON.parse(r.screens), is_system: Boolean(r.is_system) })) });
+  } catch (e) { next(e); }
+});
+
+router.post('/roles', async (req, res, next) => {
+  try {
+    const { label, screens } = req.body || {};
+    if (!label?.trim()) return res.status(400).json({ error: 'Role name is required' });
+    const name = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30);
+    if (!name) return res.status(400).json({ error: 'Role name must contain at least one letter or number' });
+
+    const clean = Array.isArray(screens) ? screens.filter((s) => ALL_SCREENS.includes(s)) : [];
+    const [[{ maxSort }]] = await pool.query('SELECT COALESCE(MAX(sort_order),0) AS maxSort FROM roles');
+    try {
+      await pool.query(
+        'INSERT INTO roles (name, label, screens, is_system, sort_order) VALUES (?,?,?,0,?)',
+        [name, label.trim(), JSON.stringify(clean), maxSort + 1]
+      );
+    } catch (e) {
+      if (e.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: `A role named "${label.trim()}" already exists` });
+      throw e;
+    }
+    await loadRoles();
+    res.status(201).json({ role: { name, label: label.trim(), screens: clean } });
   } catch (e) { next(e); }
 });
 
 function normalizeScreens(screens, role) {
   if (!Array.isArray(screens)) return null;
   const clean = screens.filter((s) => ALL_SCREENS.includes(s));
-  const defaults = ROLE_DEFAULT_SCREENS[role] || [];
+  const defaults = getRoleDefaults(role);
   // Store NULL when it matches the role default (keeps user on the role preset).
   if (clean.length === defaults.length && defaults.every((s) => clean.includes(s))) return null;
   return JSON.stringify(clean);
@@ -36,7 +70,7 @@ function normalizeScreens(screens, role) {
 router.post('/', async (req, res, next) => {
   try {
     const { username, full_name, password, role, screens } = req.body || {};
-    if (!username?.trim() || !password || !['admin', 'staff', 'accounts'].includes(role)) {
+    if (!username?.trim() || !password || !getRolesCache()[role]) {
       return res.status(400).json({ error: 'Username, password and a valid role are required' });
     }
     if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
@@ -62,7 +96,7 @@ router.put('/:id', async (req, res, next) => {
     const target = rows[0];
     const { full_name, password, role, screens, is_active } = req.body || {};
 
-    const newRole = ['admin', 'staff', 'accounts'].includes(role) ? role : target.role;
+    const newRole = role && getRolesCache()[role] ? role : target.role;
     const newActive = typeof is_active === 'boolean' ? (is_active ? 1 : 0) : target.is_active;
 
     // Never lock out the last active admin.

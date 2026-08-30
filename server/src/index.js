@@ -9,6 +9,7 @@ import adminRoutes from './routes/admin.js';
 import userRoutes from './routes/users.js';
 import settingsRoutes from './routes/settings.js';
 import formAdminRoutes from './routes/formadmin.js';
+import { loadRoles } from './middleware/auth.js';
 
 dotenv.config();
 
@@ -35,4 +36,6 @@ app.use((err, req, res, next) => {
 });
 
 const port = process.env.PORT || 5000;
-app.listen(port, () => console.log(`REACH API running on http://localhost:${port}`));
+loadRoles()
+  .then(() => app.listen(port, () => console.log(`REACH API running on http://localhost:${port}`)))
+  .catch((e) => { console.error('Failed to load roles at startup:', e.message); process.exit(1); });

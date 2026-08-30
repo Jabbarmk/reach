@@ -272,15 +272,18 @@ async function removeReceiptDoc(conn, docId) {
 
 router.get('/payments', requireScreen('payments'), async (req, res, next) => {
   try {
-    const { search } = req.query;
+    const { search, method, collected_by, recorded_by } = req.query;
     let sql = `SELECT p.*, a.name, a.reference_no, a.membership_id, a.membership_type, a.status AS member_status
                FROM payments p JOIN applications a ON a.id = p.application_id
                WHERE a.deleted_at IS NULL`;
     const params = [];
     if (search) {
-      sql += ' AND (a.name LIKE ? OR a.reference_no LIKE ? OR a.membership_id LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      sql += ' AND (a.name LIKE ? OR a.reference_no LIKE ? OR a.membership_id LIKE ? OR p.receipt_number LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
+    if (method) { sql += ' AND p.method = ?'; params.push(method); }
+    if (collected_by) { sql += ' AND p.collected_by = ?'; params.push(collected_by); }
+    if (recorded_by) { sql += ' AND p.recorded_by = ?'; params.push(recorded_by); }
     sql += ' ORDER BY p.paid_on DESC, p.id DESC LIMIT 500';
     const [rows] = await pool.query(sql, params);
     res.json(rows);
