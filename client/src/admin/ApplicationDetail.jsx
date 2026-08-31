@@ -11,7 +11,7 @@ const Row = ({ k, v }) => (
 const statusPill = (s) => {
   const map = {
     'Pending Verification': 'orange', 'Correction Requested': 'red', 'Payment Pending': 'blue',
-    Active: 'green', Approved: 'teal', Rejected: 'red',
+    'Payment Verified': 'blue', Active: 'green', Approved: 'teal', Rejected: 'red',
   };
   return <span className={`pill ${map[s] || 'grey'}`}>{s}</span>;
 };
@@ -25,6 +25,7 @@ export default function ApplicationDetail() {
   const canApprove = session?.screens?.includes('approvals');
   const canPay = session?.screens?.includes('payments');
   const canDelete = session?.role === 'admin';
+  const isAdmin = session?.role === 'admin';
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [note, setNote] = useState('');
@@ -32,8 +33,13 @@ export default function ApplicationDetail() {
   const [photoUrl, setPhotoUrl] = useState(null);
   const [viewer, setViewer] = useState(null); // {url, mime, label}
   const [showAadhaar, setShowAadhaar] = useState(false);
-  const [showCard, setShowCard] = useState(false);
-  const [payModal, setPayModal] = useState(null); // 'approve' | 'record' | 'edit'
+  const [payModal, setPayModal] = useState(null); // 'record' | 'edit'
+  const [users, setUsers] = useState([]);
+  const userName = (username) => users.find((u) => u.username === username)?.name || username;
+  const userLabel = (username) => {
+    const u = users.find((x) => x.username === username);
+    return u ? `${u.name} — ${u.roleLabel}` : username;
+  };
 
   const load = async () => {
     try {
@@ -50,9 +56,16 @@ export default function ApplicationDetail() {
   };
 
   useEffect(() => { load(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { (async () => { try { setUsers(await api.listCollectors()); } catch { /* names stay as usernames */ } })(); }, []);
+
+  const CONFIRM_TEXT = {
+    reject: 'Reject this application?',
+    approve: 'Approve this application? The membership ID can be generated in the next step.',
+    generate_id_card: 'Generate the membership ID and activate this member?',
+  };
 
   const doAction = async (action) => {
-    if (action === 'reject' && !window.confirm('Reject this application?')) return;
+    if (CONFIRM_TEXT[action] && !window.confirm(CONFIRM_TEXT[action])) return;
     setBusy(true);
     setError(null);
     try {
@@ -82,7 +95,19 @@ export default function ApplicationDetail() {
   if (error && !data) return <div className="alert error">{error}</div>;
 
   const app = data.application;
-  const isPending = ['Pending Verification', 'Submitted', 'Correction Requested'].includes(app.status);
+  const canRecordPayment = app.payment_status !== 'Paid' && !['Approved', 'Active', 'Rejected', 'Deactivated'].includes(app.status);
+  const canApproveNow = app.status === 'Payment Verified';
+  const canGenerateId = app.status === 'Approved' && !app.membership_id;
+  const canRejectNow = ['Pending Verification', 'Submitted', 'Payment Verified'].includes(app.status);
+
+  const printCard = () => {
+    const original = document.title;
+    const safeName = (app.name || '').trim().replace(/[^\w\- ]/g, '').replace(/\s+/g, '_');
+    document.title = `${app.membership_id || app.reference_no}-${safeName}`;
+    const restore = () => { document.title = original; window.removeEventListener('afterprint', restore); };
+    window.addEventListener('afterprint', restore);
+    window.print();
+  };
 
   return (
     <>
@@ -173,23 +198,6 @@ export default function ApplicationDetail() {
             </div>
           )}
 
-          {(app.membership_id) && (
-            <div className="card no-print" style={{ marginTop: 20 }}>
-              <h2 style={{ fontSize: 17 }}>Membership Card</h2>
-              <p className="sub">Generated after approval{app.payment_status !== 'Paid' ? ' — payment still pending' : ''}.</p>
-              <button className="btn btn-teal btn-sm" onClick={() => setShowCard(!showCard)}>
-                {showCard ? 'Hide card' : 'Show membership card'}
-              </button>
-              {showCard && (
-                <div style={{ marginTop: 16 }}>
-                  <MembershipCard app={app} photoUrl={photoUrl} />
-                  <div style={{ textAlign: 'center', marginTop: 12 }} className="no-print">
-                    <button className="btn btn-primary btn-sm" onClick={() => window.print()}>🖨 Print card</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         <div>
@@ -218,8 +226,9 @@ export default function ApplicationDetail() {
                 {data.payment.receipt_number && <div className="review-row"><div className="k">Receipt No.</div><div className="v" style={{ fontFamily: 'monospace' }}>{data.payment.receipt_number}</div></div>}
                 <div className="review-row"><div className="k">Amount</div><div className="v">₹{Number(data.payment.amount).toLocaleString('en-IN')}</div></div>
                 <div className="review-row"><div className="k">Method</div><div className="v">{data.payment.method}</div></div>
+                {data.payment.collected_by && <div className="review-row"><div className="k">Cash Collected By</div><div className="v">{userLabel(data.payment.collected_by)}</div></div>}
                 <div className="review-row"><div className="k">Date</div><div className="v">{data.payment.paid_on}</div></div>
-                <div className="review-row"><div className="k">Recorded by</div><div className="v">{data.payment.recorded_by}</div></div>
+                <div className="review-row"><div className="k">Recorded by</div><div className="v">{userName(data.payment.recorded_by)}</div></div>
                 {data.payment.note && <div className="review-row"><div className="k">Note</div><div className="v">{data.payment.note}</div></div>}
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
@@ -265,35 +274,62 @@ export default function ApplicationDetail() {
 
           <div className="card" style={{ marginBottom: 20 }}>
             <h2 style={{ fontSize: 16, marginBottom: 12 }}>Actions</h2>
+            <ol className="stage-list">
+              <li className={app.payment_status === 'Paid' ? 'done' : canRecordPayment ? 'active' : ''}>Verify Payment</li>
+              <li className={['Approved', 'Active'].includes(app.status) ? 'done' : canApproveNow ? 'active' : ''}>Approve</li>
+              <li className={app.membership_id ? 'done' : canGenerateId ? 'active' : ''}>Generate ID Card</li>
+            </ol>
             <div className="field">
               <label>Note (optional)</label>
               <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason / remark for this action…" style={{ width: '100%', resize: 'vertical' }} />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {isPending && canApprove && (
-                <button className="btn btn-green" disabled={busy} onClick={() => setPayModal('approve')}>
-                  ✓ Approve &amp; Generate Membership ID
-                </button>
-              )}
-              {isPending && canApprove && (
-                <button className="btn btn-outline" disabled={busy} onClick={() => doAction('request_correction')}>
-                  ✎ Request Correction
-                </button>
-              )}
-              {app.payment_status !== 'Paid' && !isPending && canPay && (
+              {canRecordPayment && (canPay || canApprove) && (
                 <button className="btn btn-teal" disabled={busy} onClick={() => setPayModal('record')}>
-                  ₹ Record Payment
+                  💳 Verify Payment
                 </button>
               )}
-              {isPending && canApprove && (
+              {canApproveNow && isAdmin && (
+                <button className="btn btn-green" disabled={busy} onClick={() => doAction('approve')}>
+                  ✓ Approve
+                </button>
+              )}
+              {canApproveNow && !isAdmin && (
+                <p className="sub" style={{ marginBottom: 0 }}>Payment verified — awaiting admin approval.</p>
+              )}
+              {canGenerateId && isAdmin && (
+                <button className="btn btn-green" disabled={busy} onClick={() => doAction('generate_id_card')}>
+                  🪪 Generate ID Card
+                </button>
+              )}
+              {canGenerateId && !isAdmin && (
+                <p className="sub" style={{ marginBottom: 0 }}>Approved — awaiting admin to generate the membership ID.</p>
+              )}
+              {app.membership_id && (
+                <button className="btn btn-outline" disabled={busy} onClick={() => load()}>
+                  🔄 Refresh ID Card Preview
+                </button>
+              )}
+              {canRejectNow && canApprove && (
                 <button className="btn btn-danger" disabled={busy} onClick={() => doAction('reject')}>
                   ✕ Reject Application
                 </button>
               )}
-              {!canApprove && !canPay && <p className="sub" style={{ marginBottom: 0 }}>Your role has view-only access to applications.</p>}
+              {!canApprove && !canPay && !app.membership_id && <p className="sub" style={{ marginBottom: 0 }}>Your role has view-only access to applications.</p>}
             </div>
             {app.admin_note && <div className="alert info" style={{ marginTop: 12, marginBottom: 0 }}>Last note: {app.admin_note}</div>}
           </div>
+
+          {app.membership_id && (
+            <div className="card" style={{ marginBottom: 20 }}>
+              <h2 className="no-print" style={{ fontSize: 16, marginBottom: 4 }}>Membership Card</h2>
+              <p className="sub no-print">Membership ID never changes once issued — refresh above if member details were updated.</p>
+              <MembershipCard app={app} photoUrl={photoUrl} />
+              <div style={{ textAlign: 'center', marginTop: 12 }} className="no-print">
+                <button className="btn btn-primary btn-sm" onClick={printCard}>🖨 Print card</button>
+              </div>
+            </div>
+          )}
 
           {canDelete && (
             <div className="card danger-zone" style={{ marginBottom: 20 }}>

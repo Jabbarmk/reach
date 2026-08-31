@@ -666,6 +666,18 @@ img { max-width: 100%; }
 
 .danger-zone { border-color: #fecaca !important; background: #fffafa !important; }
 
+.stage-list { list-style: none; display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; }
+.stage-list li {
+  position: relative; padding: 6px 0 6px 26px; font-size: 13px; font-weight: 600; color: var(--muted);
+}
+.stage-list li::before {
+  content: '○'; position: absolute; left: 0; top: 5px; font-size: 15px; color: var(--line);
+}
+.stage-list li.active { color: var(--blue-800); }
+.stage-list li.active::before { content: '●'; color: var(--orange-500); }
+.stage-list li.done { color: var(--teal-600); }
+.stage-list li.done::before { content: '✓'; color: var(--teal-600); font-weight: 800; }
+
 /* Home page content editor */
 .hc-section {
   border: 1px solid var(--line); border-radius: 12px; margin-bottom: 12px;
@@ -973,32 +985,60 @@ table.apps tbody tr:hover { background: var(--blue-50); }
 .alogin-foot a { color: var(--muted); text-decoration: none; }
 .alogin-foot a:hover { color: var(--blue-700); text-decoration: underline; }
 
-/* ============ Membership card (printable) ============ */
-.mcard {
-  width: 420px; max-width: 100%; border-radius: 16px; overflow: hidden;
-  box-shadow: 0 10px 32px rgba(13,42,107,.25); background: #fff;
-  border: 1px solid var(--line); margin: 0 auto;
+/* ============ Membership card (printable, vertical) ============ */
+.mcard-v {
+  width: 320px; max-width: 100%; border-radius: 22px; overflow: hidden;
+  box-shadow: 0 14px 38px rgba(13,42,107,.28); background: #fff;
+  border: 1px solid var(--line); margin: 0 auto; position: relative;
 }
-.mcard .mc-top {
-  background: linear-gradient(120deg, var(--blue-900), var(--blue-700) 65%, var(--teal-600));
-  color: #fff; padding: 12px 18px; display: flex; align-items: center; gap: 12px;
+.mcv-header {
+  background: linear-gradient(150deg, var(--blue-900), var(--blue-700) 60%, var(--teal-600));
+  padding: 26px 20px 52px; text-align: center; position: relative; overflow: hidden;
 }
-.mcard .mc-logo-chip {
-  display: inline-flex; align-items: center; background: #fff;
-  border-radius: 9px; padding: 4px 10px;
+.mcv-header::before, .mcv-header::after {
+  content: ''; position: absolute; border-radius: 50%; background: rgba(255,255,255,.06);
 }
-.mcard .mc-logo-chip img { height: 34px; width: auto; display: block; }
-.mcard .mc-cap { font-size: 11px; opacity: .9; margin-left: auto; text-align: right; font-weight: 600; }
-.mcard .mc-body { display: flex; gap: 16px; padding: 16px 18px; }
-.mcard .mc-photo { width: 92px; height: 92px; border-radius: 10px; object-fit: cover; border: 2px solid var(--blue-100); }
-.mcard .mc-info { flex: 1; font-size: 12.5px; }
-.mcard .mc-info .nm { font-size: 16px; font-weight: 800; color: var(--blue-900); }
-.mcard .mc-info .row { display: flex; gap: 6px; margin-top: 4px; }
-.mcard .mc-info .row .k { color: var(--muted); width: 78px; flex-shrink: 0; }
-.mcard .mc-info .row .v { font-weight: 600; }
-.mcard .mc-foot {
-  background: var(--blue-50); padding: 9px 18px; font-size: 11px; color: var(--muted);
-  display: flex; justify-content: space-between; border-top: 1px solid var(--line);
+.mcv-header::before { width: 160px; height: 160px; top: -70px; right: -50px; }
+.mcv-header::after { width: 110px; height: 110px; bottom: -50px; left: -30px; }
+.mcv-badge {
+  display: inline-flex; align-items: center; justify-content: center; background: #fff;
+  border-radius: 14px; padding: 8px 16px; box-shadow: 0 4px 14px rgba(0,0,0,.18);
+  position: relative; z-index: 1;
+}
+.mcv-badge img { height: 40px; width: auto; display: block; }
+.mcv-subtitle {
+  margin-top: 12px; color: #fff; font-size: 12px; font-weight: 700;
+  letter-spacing: 2.5px; text-transform: uppercase; opacity: .92; position: relative; z-index: 1;
+}
+.mcv-photo-wrap { text-align: center; margin-top: -46px; position: relative; z-index: 2; }
+.mcv-photo {
+  width: 92px; height: 92px; border-radius: 50%; object-fit: cover;
+  border: 4px solid #fff; box-shadow: 0 4px 14px rgba(13,42,107,.25); background: #fff;
+}
+.mcv-photo-placeholder {
+  display: flex; align-items: center; justify-content: center; font-size: 34px;
+  background: var(--blue-100); margin: 0 auto;
+}
+.mcv-body { padding: 14px 24px 20px; text-align: center; }
+.mcv-name { font-size: 18px; font-weight: 800; color: var(--ink); margin-bottom: 8px; }
+.mcv-plan {
+  display: inline-block; background: var(--teal-100); color: var(--teal-600);
+  font-size: 11px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase;
+  border-radius: 999px; padding: 4px 14px; margin-bottom: 18px;
+}
+.mcv-details {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 14px;
+  padding: 14px 18px; text-align: left;
+}
+.mcv-field { display: flex; flex-direction: column; gap: 3px; }
+.mcv-row2 { display: flex; justify-content: space-between; gap: 10px; margin-top: 12px; }
+.mcv-label { font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+.mcv-value { font-size: 14px; font-weight: 700; color: var(--ink); }
+.mcv-value.mcv-id { color: var(--blue-700); font-size: 16px; letter-spacing: .3px; }
+.mcv-footer {
+  background: linear-gradient(90deg, var(--blue-900), var(--teal-600));
+  color: #fff; text-align: center; font-size: 11px; font-weight: 700;
+  letter-spacing: .4px; padding: 10px;
 }
 
 @media print {

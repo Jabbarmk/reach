@@ -1,10 +1,10 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import { pool } from '../db.js';
-import { requireAdmin, requireScreen, ALL_SCREENS, getRolesCache, getRoleDefaults, screensForUser, loadRoles } from '../middleware/auth.js';
+import { requireAdmin, requireScreen, requireAnyScreen, ALL_SCREENS, getRolesCache, getRoleDefaults, screensForUser, loadRoles } from '../middleware/auth.js';
 
 const router = express.Router();
-router.use(requireAdmin, requireScreen('users'));
+router.use(requireAdmin);
 
 const publicUser = (u) => ({
   id: u.id,
@@ -20,22 +20,22 @@ const publicUser = (u) => ({
 const roleDefaultsMap = () => Object.fromEntries(Object.entries(getRolesCache()).map(([name, r]) => [name, r.screens]));
 const rolesList = () => Object.entries(getRolesCache()).map(([name, r]) => ({ name, label: r.label }));
 
-router.get('/', async (req, res, next) => {
+router.get('/', requireScreen('users'), async (req, res, next) => {
   try {
     const [rows] = await pool.query('SELECT * FROM admins ORDER BY created_at ASC');
     res.json({ users: rows.map(publicUser), roleDefaults: roleDefaultsMap(), allScreens: ALL_SCREENS, roles: rolesList() });
   } catch (e) { next(e); }
 });
 
-/* ===== Roles ===== */
-router.get('/roles', async (req, res, next) => {
+/* ===== Roles (reachable from Users or Settings) ===== */
+router.get('/roles', requireAnyScreen('users', 'settings'), async (req, res, next) => {
   try {
     const [rows] = await pool.query('SELECT name, label, screens, is_system FROM roles ORDER BY sort_order, id');
     res.json({ roles: rows.map((r) => ({ name: r.name, label: r.label, screens: JSON.parse(r.screens), is_system: Boolean(r.is_system) })) });
   } catch (e) { next(e); }
 });
 
-router.post('/roles', async (req, res, next) => {
+router.post('/roles', requireAnyScreen('users', 'settings'), async (req, res, next) => {
   try {
     const { label, screens } = req.body || {};
     if (!label?.trim()) return res.status(400).json({ error: 'Role name is required' });
@@ -58,6 +58,35 @@ router.post('/roles', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.put('/roles/:name', requireAnyScreen('users', 'settings'), async (req, res, next) => {
+  try {
+    const { label, screens } = req.body || {};
+    const [rows] = await pool.query('SELECT * FROM roles WHERE name = ?', [req.params.name]);
+    if (!rows.length) return res.status(404).json({ error: 'Role not found' });
+    const role = rows[0];
+    const newLabel = label !== undefined ? label.trim() : role.label;
+    if (!newLabel) return res.status(400).json({ error: 'Role name cannot be empty' });
+    const clean = Array.isArray(screens) ? screens.filter((s) => ALL_SCREENS.includes(s)) : JSON.parse(role.screens);
+    await pool.query('UPDATE roles SET label = ?, screens = ? WHERE name = ?', [newLabel, JSON.stringify(clean), role.name]);
+    await loadRoles();
+    res.json({ role: { name: role.name, label: newLabel, screens: clean, is_system: Boolean(role.is_system) } });
+  } catch (e) { next(e); }
+});
+
+router.delete('/roles/:name', requireAnyScreen('users', 'settings'), async (req, res, next) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM roles WHERE name = ?', [req.params.name]);
+    if (!rows.length) return res.status(404).json({ error: 'Role not found' });
+    const role = rows[0];
+    if (role.name === 'admin') return res.status(400).json({ error: 'The Admin role cannot be deleted' });
+    const [[{ n }]] = await pool.query('SELECT COUNT(*) AS n FROM admins WHERE role = ?', [role.name]);
+    if (n > 0) return res.status(400).json({ error: `${n} user(s) still have this role — reassign them to another role first` });
+    await pool.query('DELETE FROM roles WHERE name = ?', [role.name]);
+    await loadRoles();
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
 function normalizeScreens(screens, role) {
   if (!Array.isArray(screens)) return null;
   const clean = screens.filter((s) => ALL_SCREENS.includes(s));
@@ -67,7 +96,7 @@ function normalizeScreens(screens, role) {
   return JSON.stringify(clean);
 }
 
-router.post('/', async (req, res, next) => {
+router.post('/', requireScreen('users'), async (req, res, next) => {
   try {
     const { username, full_name, password, role, screens } = req.body || {};
     if (!username?.trim() || !password || !getRolesCache()[role]) {
@@ -89,7 +118,7 @@ router.post('/', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', requireScreen('users'), async (req, res, next) => {
   try {
     const [rows] = await pool.query('SELECT * FROM admins WHERE id = ?', [req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'User not found' });
@@ -124,7 +153,7 @@ router.put('/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', requireScreen('users'), async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     if (id === req.admin.id) return res.status(400).json({ error: 'You cannot delete your own account' });

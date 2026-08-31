@@ -391,6 +391,196 @@ function IdFormatCard() {
   );
 }
 
+function ReferenceFormatCard() {
+  const [cfg, setCfg] = useState(null);
+  const [error, setError] = useState(null);
+  const [saved, setSaved] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try { setCfg(await api.getReferenceFormat()); } catch (err) { setError(err.message); }
+    })();
+  }, []);
+
+  const set = (k, v) => { setCfg((p) => ({ ...p, [k]: v })); setSaved(false); };
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try { setCfg(await api.saveReferenceFormat(cfg)); setSaved(true); }
+    catch (err) { setError(err.message); }
+    finally { setBusy(false); }
+  };
+
+  const preview = () => {
+    if (!cfg) return '';
+    const digits = Math.min(8, Math.max(2, Number(cfg.digits) || 5));
+    const pad = String(23).padStart(digits, '0');
+    let p = cfg.pattern || 'REACH-APP-{YEAR}-{SEQ}';
+    if (!p.includes('{SEQ}')) p += '{SEQ}';
+    return p.replaceAll('{YEAR}', String(new Date().getFullYear())).replaceAll('{SEQ}', pad) + '  (23rd application ever submitted)';
+  };
+
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <h2 style={{ fontSize: 17, marginBottom: 4 }}>Application Reference Number Format</h2>
+      <p className="sub">How the reference number is generated the moment someone submits the registration form. Existing reference numbers are never changed.</p>
+      {error && <div className="alert error">{error}</div>}
+      {saved && <div className="alert info">✓ Reference number format saved. New submissions will use it.</div>}
+      {!cfg ? <div className="empty-note"><span className="spinner lg" /></div> : (
+        <>
+          <div className="grid2">
+            <div className="field">
+              <label>Pattern <span className="req">*</span></label>
+              <input
+                type="text" value={cfg.pattern}
+                onChange={(e) => set('pattern', e.target.value)}
+                placeholder="REACH-APP-{YEAR}-{SEQ}"
+              />
+              <div className="hint">{'{YEAR}'} = submission year · {'{SEQ}'} = running number (required)</div>
+            </div>
+            <div className="field">
+              <label>Number Digits</label>
+              <input
+                type="number" min="2" max="8" value={cfg.digits}
+                onChange={(e) => set('digits', e.target.value)}
+              />
+              <div className="hint">Zero-padding, e.g. 5 → 00023</div>
+            </div>
+          </div>
+
+          <div className="id-preview">
+            <span className="lbl">Preview</span>
+            <span className="val">{preview()}</span>
+          </div>
+
+          <button className="btn btn-primary" onClick={save} disabled={busy}>
+            {busy ? 'Saving…' : 'Save Reference Number Format'}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+const SCREEN_LABELS = {
+  overview: 'Overview', members: 'Members', approvals: 'Approvals', payments: 'Payments',
+  events: 'Events', settings: 'Settings', users: 'Users', form: 'Form Builder',
+};
+const ALL_SCREENS = Object.keys(SCREEN_LABELS);
+
+function RoleModal({ role, onClose, onSaved }) {
+  const isNew = !role;
+  const [label, setLabel] = useState(role?.label || '');
+  const [screens, setScreens] = useState(role?.screens || []);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const toggle = (s) => setScreens((p) => (p.includes(s) ? p.filter((x) => x !== s) : [...p, s]));
+
+  const save = async () => {
+    if (!label.trim()) { setError('Role name is required'); return; }
+    setBusy(true);
+    setError(null);
+    try {
+      if (isNew) await api.createRole({ label, screens });
+      else await api.updateRole(role.name, { label, screens });
+      onSaved();
+    } catch (err) { setError(err.message); setBusy(false); }
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="crop-modal" style={{ maxWidth: 460 }}>
+        <div className="crop-head">
+          <h3>{isNew ? 'Add Role' : `Edit Role — ${role.label}`}</h3>
+          <p>Screens checked here become this role's default for every user assigned to it.</p>
+        </div>
+        <div style={{ padding: '16px 20px' }}>
+          {error && <div className="alert error">{error}</div>}
+          <div className="field">
+            <label>Role Name <span className="req">*</span></label>
+            <input type="text" value={label} placeholder="e.g. Volunteer Coordinator" onChange={(e) => setLabel(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>Default Screens</label>
+            <div className="screen-grid">
+              {ALL_SCREENS.map((s) => (
+                <label key={s} className={`screen-chip ${screens.includes(s) ? 'on' : ''}`}>
+                  <input type="checkbox" checked={screens.includes(s)} onChange={() => toggle(s)} />
+                  {SCREEN_LABELS[s]}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="crop-actions">
+          <button className="btn btn-outline btn-sm" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary btn-sm" onClick={save} disabled={busy}>
+            {busy ? 'Saving…' : 'Save Role'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RolesCard() {
+  const [roles, setRoles] = useState(null);
+  const [error, setError] = useState(null);
+  const [modal, setModal] = useState(undefined); // undefined = closed, null = new, object = edit
+
+  const load = async () => {
+    try { setRoles((await api.listRoles()).roles); } catch (err) { setError(err.message); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const remove = async (r) => {
+    if (!window.confirm(`Delete the "${r.label}" role? This only works if no user currently has it.`)) return;
+    try { await api.deleteRole(r.name); load(); } catch (err) { setError(err.message); }
+  };
+
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <h2 style={{ fontSize: 17, marginBottom: 4 }}>User Roles</h2>
+      <p className="sub">Add, edit or delete the roles available when creating a user. Built-in roles (Admin, Staff, Accounts) can be edited but not deleted.</p>
+      {error && <div className="alert error">{error}</div>}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+        <button className="btn btn-primary btn-sm" onClick={() => setModal(null)}>+ Add Role</button>
+      </div>
+      <div className="table-card">
+        <div className="table-scroll">
+          <table className="apps">
+            <thead>
+              <tr><th>Role</th><th>Default Screens</th><th style={{ width: 150 }}>Actions</th></tr>
+            </thead>
+            <tbody>
+              {roles?.map((r) => (
+                <tr key={r.name} style={{ cursor: 'default' }}>
+                  <td style={{ fontWeight: 700, color: 'var(--blue-800)' }}>
+                    {r.label} {r.is_system && <span className="pill grey" style={{ marginLeft: 6 }}>built-in</span>}
+                  </td>
+                  <td style={{ fontSize: 12.5 }}>{r.screens.map((s) => SCREEN_LABELS[s]).join(', ') || '—'}</td>
+                  <td>
+                    <button className="btn btn-outline btn-sm" onClick={() => setModal(r)}>Edit</button>{' '}
+                    {r.name !== 'admin' && <button className="btn btn-ghost btn-sm" onClick={() => remove(r)}>Delete</button>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {!roles && !error && <div className="empty-note"><span className="spinner lg" /></div>}
+      </div>
+      {modal !== undefined && (
+        <RoleModal role={modal} onClose={() => setModal(undefined)} onSaved={() => { setModal(undefined); load(); }} />
+      )}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { session } = useOutletContext();
   const [smtp, setSmtp] = useState(null);
@@ -445,6 +635,8 @@ export default function SettingsPage() {
       <LogoCard />
       <HomeContentCard />
       <IdFormatCard />
+      <ReferenceFormatCard />
+      <RolesCard />
 
       <div className="detail-grid">
         <div className="card">

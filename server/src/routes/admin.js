@@ -7,7 +7,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { pool } from '../db.js';
-import { requireAdmin, requireScreen, screensForUser } from '../middleware/auth.js';
+import { requireAdmin, requireScreen, requireAnyScreen, screensForUser } from '../middleware/auth.js';
 import { sendMail, templates } from '../mailer.js';
 import { buildReceiptPdf } from '../receiptPdf.js';
 
@@ -194,7 +194,8 @@ router.put('/applications/:id', requireScreen('members'), async (req, res, next)
     const updates = {};
     for (const key of EDITABLE_FIELDS) {
       if (b[key] === undefined) continue;
-      updates[key] = b[key] === '' ? (key === 'years_abroad' ? 0 : null) : b[key];
+      if (key === 'years_abroad') { updates[key] = b[key] === '' ? 0 : Math.round(Number(b[key])) || 0; continue; }
+      updates[key] = b[key] === '' ? null : b[key];
     }
     if (updates.name !== undefined && !String(updates.name || '').trim()) {
       return res.status(400).json({ error: 'Name cannot be empty' });
@@ -228,9 +229,16 @@ router.put('/applications/:id', requireScreen('members'), async (req, res, next)
 router.get('/users/collectors', async (req, res, next) => {
   try {
     const [rows] = await pool.query(
-      'SELECT username, full_name FROM admins WHERE is_active = 1 ORDER BY COALESCE(full_name, username)'
+      `SELECT a.username, a.full_name, a.role, r.label AS role_label
+       FROM admins a LEFT JOIN roles r ON r.name = a.role
+       WHERE a.is_active = 1 ORDER BY COALESCE(a.full_name, a.username)`
     );
-    res.json(rows.map((r) => ({ username: r.username, name: r.full_name || r.username })));
+    res.json(rows.map((r) => ({
+      username: r.username,
+      name: r.full_name || r.username,
+      role: r.role,
+      roleLabel: r.role_label || r.role,
+    })));
   } catch (e) { next(e); }
 });
 
@@ -290,14 +298,15 @@ router.get('/payments', requireScreen('payments'), async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Record a payment. With approve=1 it also approves the application in the same
-// transaction (allowed from the approvals screen, e.g. staff using the approve dialog).
+// Records a payment. This is the "verify payment" step — it never approves or issues a
+// membership ID on its own; those are separate, later, admin-only steps.
 router.post(
   '/payments',
   receiptUpload.single('receipt'),
-  (req, res, next) => requireScreen(req.body?.approve === '1' ? 'approvals' : 'payments')(req, res, next),
+  requireAnyScreen('payments', 'approvals'),
   async (req, res, next) => {
-    const { application_id, amount, method, paid_on, note, approve, collected_by } = req.body || {};
+    const { application_id, amount, method, paid_on, note } = req.body || {};
+    const collected_by = req.adminUser.role === 'admin' ? req.body?.collected_by : req.admin.username;
     const amt = Number(amount);
     if (!application_id || !(amt > 0)) return res.status(400).json({ error: 'A valid amount is required' });
     if (!method?.trim()) return res.status(400).json({ error: 'Payment method is required' });
@@ -313,32 +322,6 @@ router.post(
       const [existing] = await conn.query('SELECT id FROM payments WHERE application_id = ?', [app.id]);
       if (existing.length) { await conn.rollback(); return res.status(400).json({ error: 'A payment is already recorded for this member — edit it instead' }); }
 
-      let approvedNow = false;
-      let membershipId = app.membership_id;
-      if (approve === '1') {
-        if (!['Pending Verification', 'Submitted', 'Correction Requested'].includes(app.status)) {
-          await conn.rollback();
-          return res.status(400).json({ error: 'This application is not awaiting approval' });
-        }
-        membershipId = membershipId || (await generateMembershipId(conn, app));
-        const [[plan]] = await conn.query('SELECT * FROM membership_plans WHERE code = ?', [app.membership_type]);
-        let validityStart, validityEnd;
-        if (plan && plan.validity_type === 'range') {
-          validityStart = plan.validity_start;
-          validityEnd = plan.validity_end;
-        } else {
-          validityStart = new Date().toISOString().slice(0, 10);
-          validityEnd = null;
-        }
-        await conn.query(
-          'UPDATE applications SET membership_id = ?, validity_start = ?, validity_end = ? WHERE id = ?',
-          [membershipId, validityStart, validityEnd, app.id]
-        );
-        await conn.query('INSERT INTO status_history (application_id, action, detail, actor) VALUES (?,?,?,?)',
-          [app.id, 'Approved', `Membership ID ${membershipId} generated. Status: Active.`, req.admin.username]);
-        approvedNow = true;
-      }
-
       const receiptDocId = req.file ? await insertReceiptDoc(conn, app.id, req.file) : null;
       const receiptNumber = await generateReceiptNumber(conn);
       await conn.query(
@@ -346,24 +329,19 @@ router.post(
         [app.id, amt, method.trim(), paid_on, note?.trim() || null, receiptDocId, req.admin.username, receiptNumber, collected_by.trim()]
       );
 
-      const newStatus = approvedNow || (membershipId && ['Payment Pending', 'Approved'].includes(app.status))
-        ? 'Active' : app.status;
+      const newStatus = ['Pending Verification', 'Submitted'].includes(app.status) ? 'Payment Verified' : app.status;
       await conn.query(
         'UPDATE applications SET payment_status = ?, payment_note = ?, status = ? WHERE id = ?',
         ['Paid', note?.trim() || null, newStatus, app.id]
       );
       await conn.query('INSERT INTO status_history (application_id, action, detail, actor) VALUES (?,?,?,?)',
-        [app.id, 'Payment Recorded', `₹${amt.toLocaleString('en-IN')} via ${method.trim()}${req.file ? ' (receipt attached)' : ''}`, req.admin.username]);
+        [app.id, 'Payment Verified', `₹${amt.toLocaleString('en-IN')} via ${method.trim()}${req.file ? ' (receipt attached)' : ''}`, req.admin.username]);
 
       await conn.commit();
 
       const [fresh] = await pool.query('SELECT * FROM applications WHERE id = ?', [app.id]);
       const result = fresh[0];
       if (result.email) {
-        if (approvedNow) {
-          const [s1, t1, b1] = templates.approved(result);
-          sendMail(result.email, s1, t1, b1);
-        }
         const [[planRow]] = await pool.query('SELECT name FROM membership_plans WHERE code = ?', [result.membership_type]);
         try {
           const pdf = await buildReceiptPdf({
@@ -569,13 +547,13 @@ async function generateReceiptNumber(conn) {
 
 const ACTION_SCREEN = {
   approve: 'approvals',
+  generate_id_card: 'approvals',
   reject: 'approvals',
-  request_correction: 'approvals',
   mark_paid: 'payments',
   deactivate: 'members',
   reactivate: 'members',
 };
-const ADMIN_ONLY_ACTIONS = ['deactivate', 'reactivate'];
+const ADMIN_ONLY_ACTIONS = ['approve', 'generate_id_card', 'deactivate', 'reactivate'];
 
 router.post('/applications/:id/action', async (req, res, next) => {
   const { action, note } = req.body || {};
@@ -600,7 +578,26 @@ router.post('/applications/:id/action', async (req, res, next) => {
 
       switch (action) {
         case 'approve': {
-          const membershipId = app.membership_id || (await generateMembershipId(conn, app));
+          if (app.status !== 'Payment Verified') {
+            await conn.rollback();
+            return res.status(400).json({ error: 'Payment must be verified before approving' });
+          }
+          update = { status: 'Approved', admin_note: note || app.admin_note };
+          historyAction = 'Approved';
+          detail = note ? `Approved. Note: ${note}` : 'Approved — awaiting ID card generation.';
+          mailKey = 'approved';
+          break;
+        }
+        case 'generate_id_card': {
+          if (app.status !== 'Approved') {
+            await conn.rollback();
+            return res.status(400).json({ error: 'Application must be approved before generating the ID card' });
+          }
+          if (app.membership_id) {
+            await conn.rollback();
+            return res.status(400).json({ error: 'Membership ID has already been generated for this member' });
+          }
+          const membershipId = await generateMembershipId(conn, app);
           let validityStart, validityEnd;
           if (plan && plan.validity_type === 'range') {
             validityStart = plan.validity_start;
@@ -609,22 +606,20 @@ router.post('/applications/:id/action', async (req, res, next) => {
             validityStart = new Date().toISOString().slice(0, 10);
             validityEnd = null;
           }
-          const status = app.payment_status === 'Paid' ? 'Active' : 'Payment Pending';
-          update = { status, membership_id: membershipId, validity_start: validityStart, validity_end: validityEnd, admin_note: note || app.admin_note };
-          historyAction = 'Approved';
-          detail = `Membership ID ${membershipId} generated. Status: ${status}.` + (note ? ` Note: ${note}` : '');
+          update = { status: 'Active', membership_id: membershipId, validity_start: validityStart, validity_end: validityEnd };
+          historyAction = 'ID Card Generated';
+          detail = `Membership ID ${membershipId} generated. Status: Active.`;
           mailKey = 'approved';
           break;
         }
         case 'reject':
+          if (!['Pending Verification', 'Submitted', 'Payment Verified'].includes(app.status)) {
+            await conn.rollback();
+            return res.status(400).json({ error: 'This application can no longer be rejected' });
+          }
           update = { status: 'Rejected', admin_note: note || app.admin_note };
           historyAction = 'Rejected';
           mailKey = 'rejected';
-          break;
-        case 'request_correction':
-          update = { status: 'Correction Requested', admin_note: note || app.admin_note };
-          historyAction = 'Correction Requested';
-          mailKey = 'correction';
           break;
         case 'mark_paid': {
           const status = ['Payment Pending', 'Approved'].includes(app.status) && app.membership_id ? 'Active' : app.status;

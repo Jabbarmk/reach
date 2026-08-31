@@ -41,7 +41,6 @@ export default function Overview() {
   const who = sessionStorage.getItem('reach_admin_user') || 'admin';
 
   const CARDS = [
-    { label: 'Total members', value: stats?.total, ico: '👥', tone: 'blue', chip: stats?.recent ? `+${stats.recent} this month` : null },
     { label: 'Active members', value: active, ico: '✅', tone: 'green', chip: null },
     { label: 'Pending approvals', value: stats?.pending, ico: '⏳', tone: 'orange', chip: null, link: '/admin/approvals' },
     { label: 'Payments received', value: stats?.paid, ico: '₹', tone: 'teal', chip: null, link: '/admin/payments' },

@@ -93,8 +93,8 @@ export default function StepDetails({ data, setField, errors, cfg }) {
             {vis('city') && <TextField label={label('city', 'City')} required={req('city')} value={data.city} onChange={(v) => setField('city', v)} error={errors.city} uppercase />}
             {vis('years_abroad') && (
               <TextField
-                label={label('years_abroad', 'Total Years of Working in Abroad')} required={req('years_abroad')} type="number" min="0" step="0.5"
-                value={data.years_abroad} onChange={(v) => setField('years_abroad', v)} error={errors.years_abroad}
+                label={label('years_abroad', 'Total Years of Working in Abroad')} required={req('years_abroad')} type="number" min="0" step="1"
+                value={data.years_abroad} onChange={(v) => setField('years_abroad', v.replace(/[^\d]/g, ''))} error={errors.years_abroad}
               />
             )}
           </div>
@@ -132,8 +132,8 @@ export default function StepDetails({ data, setField, errors, cfg }) {
             {vis('current_job') && <TextField label={label('current_job', 'Current Job')} required={req('current_job')} value={data.current_job} onChange={(v) => setField('current_job', v)} error={errors.current_job} hint="e.g. Retired, Business, Consultant" uppercase />}
             {vis('years_abroad') && (
               <TextField
-                label={label('years_abroad', 'Total Years Worked in Abroad')} required={req('years_abroad')} type="number" min="0" step="0.5"
-                value={data.years_abroad} onChange={(v) => setField('years_abroad', v)} error={errors.years_abroad}
+                label={label('years_abroad', 'Total Years Worked in Abroad')} required={req('years_abroad')} type="number" min="0" step="1"
+                value={data.years_abroad} onChange={(v) => setField('years_abroad', v.replace(/[^\d]/g, ''))} error={errors.years_abroad}
               />
             )}
           </div>

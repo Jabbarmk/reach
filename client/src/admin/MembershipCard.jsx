@@ -1,33 +1,52 @@
+const fmtDate = (d) => {
+  if (!d) return '—';
+  const [y, m, dd] = d.split('-');
+  return `${dd}/${m}/${y}`;
+};
+
 export default function MembershipCard({ app, photoUrl }) {
-  const validity = app.membership_type === 'lifetime'
-    ? 'Lifetime'
-    : `${app.validity_start || '2027-01-01'} → ${app.validity_end || '2028-12-31'}`;
+  const isLifetime = app.membership_type === 'lifetime';
+  const issued = fmtDate(app.validity_start);
+  const validTill = isLifetime ? 'Lifetime' : fmtDate(app.validity_end);
 
   return (
-    <div className="mcard print-zone">
-      <div className="mc-top">
-        <span className="mc-logo-chip">
+    <div className="mcard-v print-zone">
+      <div className="mcv-header">
+        <span className="mcv-badge">
           <img src="/api/logo" alt="REACH Pravasi Welfare Society" />
         </span>
-        <p className="mc-cap">Official Membership Card</p>
+        <p className="mcv-subtitle">Membership Card</p>
       </div>
-      <div className="mc-body">
+
+      <div className="mcv-photo-wrap">
         {photoUrl
-          ? <img className="mc-photo" src={photoUrl} alt="Member" />
-          : <div className="mc-photo" style={{ background: 'var(--blue-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30 }}>👤</div>}
-        <div className="mc-info">
-          <div className="nm">{app.name}</div>
-          <div className="row"><span className="k">Member ID</span><span className="v">{app.membership_id || '—'}</span></div>
-          <div className="row"><span className="k">Plan</span><span className="v">{app.membership_type === 'lifetime' ? 'Lifetime' : 'Two-Year'}</span></div>
-          <div className="row"><span className="k">Validity</span><span className="v">{validity}</span></div>
-          <div className="row"><span className="k">Blood Group</span><span className="v">{app.blood_group}</span></div>
-          <div className="row"><span className="k">Place</span><span className="v">{app.place}</span></div>
+          ? <img className="mcv-photo" src={photoUrl} alt={app.name} />
+          : <div className="mcv-photo mcv-photo-placeholder">👤</div>}
+      </div>
+
+      <div className="mcv-body">
+        <div className="mcv-name">{app.name}</div>
+        <span className="mcv-plan">{isLifetime ? 'Lifetime Membership' : 'Two-Year Membership'}</span>
+
+        <div className="mcv-details">
+          <div className="mcv-field">
+            <span className="mcv-label">Membership ID</span>
+            <span className="mcv-value mcv-id">{app.membership_id || 'Pending'}</span>
+          </div>
+          <div className="mcv-row2">
+            <div className="mcv-field">
+              <span className="mcv-label">Issued</span>
+              <span className="mcv-value">{issued}</span>
+            </div>
+            <div className="mcv-field" style={{ textAlign: 'right' }}>
+              <span className="mcv-label">Valid Till</span>
+              <span className="mcv-value">{validTill}</span>
+            </div>
+          </div>
         </div>
       </div>
-      <div className="mc-foot">
-        <span>www.reach.org</span>
-        <span>{app.is_expat ? 'Expat Member' : 'Member'}</span>
-      </div>
+
+      <div className="mcv-footer">REACH Pravasi Welfare Society</div>
     </div>
   );
 }

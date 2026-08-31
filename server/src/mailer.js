@@ -66,13 +66,14 @@ export const templates = {
      <p>Our team will verify your application and contact you soon.</p>`,
   ],
   approved: (app) => [
-    `Application Approved — Membership ID ${app.membership_id}`,
-    'Application Approved',
+    app.membership_id ? `Membership Active — ${app.membership_id}` : `Application Approved — ${app.reference_no}`,
+    app.membership_id ? 'Membership Active' : 'Application Approved',
     `<p>Dear <strong>${app.name}</strong>,</p>
-     <p>Congratulations! Your membership application has been <strong style="color:#16a34a">approved</strong>.</p>
-     <p><strong>Membership ID:</strong> ${app.membership_id}<br>
-        <strong>Status:</strong> ${app.status}</p>
-     ${app.status === 'Payment Pending' ? `<p>Please complete the membership fee payment of <strong>₹${app.membership_fee}</strong> to activate your membership.</p>` : ''}`,
+     ${app.membership_id
+        ? `<p>Your REACH membership is now <strong style="color:#16a34a">Active</strong>!</p>
+           <p><strong>Membership ID:</strong> ${app.membership_id}<br>
+              <strong>Validity:</strong> ${app.validity_end ? `${app.validity_start} to ${app.validity_end}` : 'Lifetime'}</p>`
+        : `<p>Great news — your membership application has been <strong style="color:#16a34a">approved</strong>. Your membership ID will be issued shortly.</p>`}`,
   ],
   rejected: (app, note) => [
     `Application Update — ${app.reference_no}`,
@@ -95,7 +96,9 @@ export const templates = {
     'Payment Received',
     `<p>Dear <strong>${app.name}</strong>,</p>
      <p>We have received your membership fee payment of <strong>₹${app.membership_fee}</strong>. Thank you!</p>
-     ${app.membership_id ? `<p><strong>Membership ID:</strong> ${app.membership_id}<br><strong>Status:</strong> ${app.status}</p>` : ''}
+     ${app.membership_id
+        ? `<p><strong>Membership ID:</strong> ${app.membership_id}<br><strong>Status:</strong> ${app.status}</p>`
+        : `<p>Your application is now pending final approval.</p>`}
      ${receiptNumber ? `<p>Your receipt (<strong>${receiptNumber}</strong>) is attached to this e-mail.</p>` : ''}`,
   ],
 };

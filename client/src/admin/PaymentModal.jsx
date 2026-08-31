@@ -2,18 +2,22 @@ import { useEffect, useState } from 'react';
 import { api, getSession } from '../api.js';
 
 /**
- * Payment dialog used for: recording a payment (mode 'record'),
- * the approve flow (mode 'approve': verifying payment is now required to approve),
- * and editing an existing payment (mode 'edit').
+ * Payment dialog used for: recording/verifying a payment (mode 'record')
+ * and editing an existing payment (mode 'edit'). Approval is a separate,
+ * later step handled elsewhere once payment is verified.
  */
 export default function PaymentModal({ mode, app, payment, onClose, onDone }) {
+  const session = getSession();
+  const isAdmin = session?.role === 'admin';
   const [plans, setPlans] = useState([]);
   const [methods, setMethods] = useState([]);
   const [collectors, setCollectors] = useState([]);
   const [amountChoice, setAmountChoice] = useState('');
   const [customAmount, setCustomAmount] = useState('');
   const [method, setMethod] = useState(payment?.method || '');
-  const [collectedBy, setCollectedBy] = useState(payment?.collected_by || getSession()?.username || '');
+  const [collectedBy, setCollectedBy] = useState(
+    isAdmin ? (payment?.collected_by || session?.username || '') : (session?.username || '')
+  );
   const [paidOn, setPaidOn] = useState(payment?.paid_on || new Date().toISOString().slice(0, 10));
   const [note, setNote] = useState(payment?.note || '');
   const [receipt, setReceipt] = useState(null);
@@ -68,7 +72,6 @@ export default function PaymentModal({ mode, app, payment, onClose, onDone }) {
       } else {
         const fd = buildForm();
         fd.append('application_id', app.id);
-        if (mode === 'approve') fd.append('approve', '1');
         await api.createPayment(fd);
       }
       onDone();
@@ -87,15 +90,8 @@ export default function PaymentModal({ mode, app, payment, onClose, onDone }) {
     <div className="modal-overlay">
       <div className="crop-modal" style={{ maxWidth: 500 }}>
         <div className="crop-head">
-          <h3>
-            {mode === 'approve' && 'Payment Verification & Approval'}
-            {mode === 'record' && 'Record Payment'}
-            {mode === 'edit' && 'Edit Payment'}
-          </h3>
-          <p>
-            {app?.name}{app?.membership_id ? ` · ${app.membership_id}` : ''}
-            {mode === 'approve' && ' — payment must be verified to approve.'}
-          </p>
+          <h3>{mode === 'edit' ? 'Edit Payment' : 'Verify Payment'}</h3>
+          <p>{app?.name}{app?.membership_id ? ` · ${app.membership_id}` : ''}</p>
         </div>
         <div style={{ padding: '16px 20px', maxHeight: '58vh', overflowY: 'auto' }}>
           {error && <div className="alert error">{error}</div>}
@@ -128,10 +124,20 @@ export default function PaymentModal({ mode, app, payment, onClose, onDone }) {
             </div>
             <div className="field">
               <label>Cash Collected By <span className="req">*</span></label>
-              <select value={collectedBy} onChange={(e) => setCollectedBy(e.target.value)}>
-                <option value="" disabled>Select user…</option>
-                {collectors.map((c) => <option key={c.username} value={c.username}>{c.name}</option>)}
-              </select>
+              {isAdmin ? (
+                <select value={collectedBy} onChange={(e) => setCollectedBy(e.target.value)}>
+                  <option value="" disabled>Select user…</option>
+                  {collectors.map((c) => <option key={c.username} value={c.username}>{c.name} — {c.roleLabel}</option>)}
+                </select>
+              ) : (
+                <input
+                  type="text" disabled
+                  value={(() => {
+                    const c = collectors.find((x) => x.username === collectedBy);
+                    return c ? `${c.name} — ${c.roleLabel}` : (session?.full_name || session?.username || '');
+                  })()}
+                />
+              )}
             </div>
           </div>
           <div className="field">
@@ -154,9 +160,7 @@ export default function PaymentModal({ mode, app, payment, onClose, onDone }) {
         <div className="crop-actions" style={{ flexWrap: 'wrap' }}>
           <button className="btn btn-outline btn-sm" onClick={onClose} disabled={busy}>Cancel</button>
           <button className="btn btn-green btn-sm" onClick={submitPayment} disabled={busy}>
-            {busy ? 'Saving…' :
-              mode === 'approve' ? 'Payment Verify and Approve' :
-              mode === 'edit' ? 'Save Changes' : '₹ Record Payment'}
+            {busy ? 'Saving…' : mode === 'edit' ? 'Save Changes' : '💳 Verify Payment'}
           </button>
         </div>
       </div>

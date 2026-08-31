@@ -85,6 +85,40 @@ router.get('/form-config', async (req, res, next) => {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// Society-wide reference-number counter (same bootstrap pattern as membership IDs/receipts).
+async function nextReferenceSeq(conn) {
+  const [rows] = await conn.query("SELECT value FROM settings WHERE name = 'reference_seq' FOR UPDATE");
+  let next;
+  if (rows.length) {
+    try { next = Number(JSON.parse(rows[0].value).next) || 1; } catch { next = 1; }
+    await conn.query("UPDATE settings SET value = ? WHERE name = 'reference_seq'", [JSON.stringify({ next: next + 1 })]);
+  } else {
+    const [[{ n }]] = await conn.query('SELECT COUNT(*) AS n FROM applications');
+    next = n + 1;
+    await conn.query("INSERT INTO settings (name, value) VALUES ('reference_seq', ?)", [JSON.stringify({ next: next + 1 })]);
+  }
+  return next;
+}
+
+async function generateReferenceNumber(conn) {
+  const [cfgRows] = await conn.query("SELECT value FROM settings WHERE name = 'reference_format'");
+  let cfg = { pattern: 'REACH-APP-{YEAR}-{SEQ}', digits: 5 };
+  if (cfgRows.length) {
+    try { cfg = { ...cfg, ...JSON.parse(cfgRows[0].value) }; } catch { /* keep defaults */ }
+  }
+  const digits = Math.min(8, Math.max(2, Number(cfg.digits) || 5));
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const seq = await nextReferenceSeq(conn);
+    const pad = String(seq).padStart(digits, '0');
+    let pattern = cfg.pattern || 'REACH-APP-{YEAR}-{SEQ}';
+    if (!pattern.includes('{SEQ}')) pattern += '{SEQ}';
+    const refNo = pattern.replaceAll('{YEAR}', String(new Date().getFullYear())).replaceAll('{SEQ}', pad);
+    const [[{ n }]] = await conn.query('SELECT COUNT(*) AS n FROM applications WHERE reference_no = ?', [refNo]);
+    if (!n) return refNo;
+  }
+  throw new Error('Could not generate a unique reference number');
+}
+
 router.post(
   '/applications',
   upload.fields([
@@ -182,11 +216,11 @@ router.post(
       if (errors.length) return res.status(400).json({ errors });
 
       const fee = plan.fee;
-      const referenceNo = `REACH-APP-${Date.now().toString(36).toUpperCase()}${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
 
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
+        const referenceNo = await generateReferenceNumber(conn);
         const [result] = await conn.query(
           `INSERT INTO applications
             (reference_no, membership_type, membership_fee, name, father_name, house_name, place, post_office,
@@ -209,7 +243,7 @@ router.post(
             isExpat ? null : (Number(d.retired_year) || null),
             isExpat ? null : d.phone_india || null,
             d.whatsapp_number || '', (d.email || '').trim(), (d.current_job || '').trim(),
-            Number(d.years_abroad) || 0,
+            Math.round(Number(d.years_abroad)) || 0,
             (d.emergency_name || '').trim(), d.emergency_phone || '',
             Object.keys(customData).length ? JSON.stringify(customData) : null,
           ]

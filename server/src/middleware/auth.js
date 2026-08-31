@@ -60,3 +60,21 @@ export function requireScreen(screen) {
     } catch (e) { next(e); }
   };
 }
+
+// Like requireScreen, but passes if the user has ANY of the given screens
+// (e.g. role management is reachable from both Users and Settings).
+export function requireAnyScreen(...screens) {
+  return async (req, res, next) => {
+    try {
+      const [rows] = await pool.query('SELECT * FROM admins WHERE id = ?', [req.admin.id]);
+      const user = rows[0];
+      if (!user || !user.is_active) return res.status(401).json({ error: 'Account disabled' });
+      req.adminUser = user;
+      req.adminScreens = screensForUser(user);
+      if (!screens.some((s) => req.adminScreens.includes(s))) {
+        return res.status(403).json({ error: 'You do not have access to this section' });
+      }
+      next();
+    } catch (e) { next(e); }
+  };
+}

@@ -20,6 +20,7 @@ export const REGISTRATION_DEFAULTS = {
   closed_message: 'New Membership Registration Temporarily Closed, Contact Admin',
 };
 export const ID_FORMAT_DEFAULTS = { mode: 'pattern', pattern: 'REACH-{YEAR}-{SEQ}', digits: 4 };
+export const REF_FORMAT_DEFAULTS = { pattern: 'REACH-APP-{YEAR}-{SEQ}', digits: 5 };
 
 async function getSetting(name, defaults) {
   const [rows] = await pool.query('SELECT value FROM settings WHERE name = ?', [name]);
@@ -127,6 +128,25 @@ router.put('/membership-id', async (req, res, next) => {
     }
     const cfg = { mode, pattern: p || ID_FORMAT_DEFAULTS.pattern, digits: d };
     await putSetting('membership_id', cfg);
+    res.json(cfg);
+  } catch (e) { next(e); }
+});
+
+/* ===== Application reference number format ===== */
+router.get('/reference-format', async (req, res, next) => {
+  try { res.json(await getSetting('reference_format', REF_FORMAT_DEFAULTS)); } catch (e) { next(e); }
+});
+
+router.put('/reference-format', async (req, res, next) => {
+  try {
+    const { pattern, digits } = req.body || {};
+    const d = Math.min(8, Math.max(2, Number(digits) || 5));
+    let p = String(pattern || REF_FORMAT_DEFAULTS.pattern).trim().slice(0, 40);
+    if (!p) return res.status(400).json({ error: 'Pattern is required' });
+    if (!p.includes('{SEQ}')) return res.status(400).json({ error: 'Pattern must contain {SEQ}' });
+    if (/[^A-Za-z0-9{}\/\-_.]/.test(p)) return res.status(400).json({ error: 'Pattern may only contain letters, numbers, - _ / . and the placeholders' });
+    const cfg = { pattern: p, digits: d };
+    await putSetting('reference_format', cfg);
     res.json(cfg);
   } catch (e) { next(e); }
 });

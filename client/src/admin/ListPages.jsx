@@ -4,7 +4,7 @@ import { api, fetchDocBlob, setToken } from '../api.js';
 import { AppsTable, MemberGrid } from './shared.jsx';
 import PaymentModal from './PaymentModal.jsx';
 
-const STATUSES = ['All', 'Pending Verification', 'Correction Requested', 'Payment Pending', 'Active', 'Approved', 'Rejected'];
+const STATUSES = ['All', 'Pending Verification', 'Payment Verified', 'Approved', 'Active', 'Rejected', 'Correction Requested', 'Payment Pending'];
 
 function useApps(defaultStatus, extraParams = {}) {
   const [params] = useSearchParams();
@@ -202,7 +202,7 @@ function MembersSummary({ stats }) {
     { label: 'Total', value: stats.total, tone: '' },
     { label: 'Active', value: count('Active'), tone: 'green' },
     { label: 'Pending', value: stats.pending, tone: 'orange' },
-    { label: 'Payment Due', value: count('Payment Pending'), tone: 'blue' },
+    { label: 'Awaiting Approval', value: count('Payment Verified'), tone: 'blue' },
   ];
   return (
     <div className="mini-stats">
@@ -340,10 +340,10 @@ export function MembersPage() {
 }
 
 export function ApprovalsPage() {
-  const ctl = useApps(['Pending Verification', 'Submitted', 'Correction Requested']);
+  const ctl = useApps(['Payment Verified', 'Pending Verification', 'Submitted', 'Correction Requested']);
   return (
     <>
-      <PageHead title="Approvals" sub="Applications waiting for verification — open one to compare documents and approve, reject or request corrections." />
+      <PageHead title="Approvals" sub="Applications with payment verified and ready for approval, plus anything still awaiting payment." />
       {ctl.error && <div className="alert error">{ctl.error}</div>}
       <Toolbar ctl={ctl} />
       <AppsTable rows={ctl.rows} emptyText="Nothing pending — all applications have been processed. 🎉" />
@@ -417,6 +417,10 @@ function ReceivedPaymentsTab({ isAdmin }) {
   useEffect(() => { load(); }, [methodFilter, collectedByFilter, recordedByFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const userName = (username) => users.find((u) => u.username === username)?.name || username;
+  const userLabel = (username) => {
+    const u = users.find((x) => x.username === username);
+    return u ? `${u.name} — ${u.roleLabel}` : username;
+  };
 
   const viewReceipt = async (p) => {
     try {
@@ -449,7 +453,7 @@ function ReceivedPaymentsTab({ isAdmin }) {
         </select>
         <select value={collectedByFilter} onChange={(e) => setCollectedByFilter(e.target.value)}>
           <option value="">Collected By: Anyone</option>
-          {users.map((u) => <option key={u.username} value={u.username}>{u.name}</option>)}
+          {users.map((u) => <option key={u.username} value={u.username}>{u.name} — {u.roleLabel}</option>)}
         </select>
         <select value={recordedByFilter} onChange={(e) => setRecordedByFilter(e.target.value)}>
           <option value="">Recorded By: Anyone</option>
@@ -475,7 +479,7 @@ function ReceivedPaymentsTab({ isAdmin }) {
                   <td style={{ color: 'var(--blue-800)', fontWeight: 700 }}>{p.membership_id || p.reference_no}</td>
                   <td style={{ fontWeight: 700 }}>₹{Number(p.amount).toLocaleString('en-IN')}</td>
                   <td>{p.method}</td>
-                  <td>{p.collected_by ? userName(p.collected_by) : '—'}</td>
+                  <td>{p.collected_by ? userLabel(p.collected_by) : '—'}</td>
                   <td>{p.paid_on}</td>
                   <td>{userName(p.recorded_by)}</td>
                   <td onClick={(e) => e.stopPropagation()} style={{ cursor: 'default' }}>
@@ -516,7 +520,7 @@ export function PaymentsPage() {
   const { session, refreshStats } = useOutletContext();
   const isAdmin = session?.role === 'admin';
   const [tab, setTab] = useState('received');
-  const ctl = useApps('Payment Pending');
+  const ctl = useApps(['Pending Verification', 'Submitted']);
   const [recordFor, setRecordFor] = useState(null);
 
   const dueActions = (r) => (
@@ -525,7 +529,7 @@ export function PaymentsPage() {
 
   return (
     <>
-      <PageHead title="Payments" sub="Approved applications awaiting payment, and the payment records received." />
+      <PageHead title="Payments" sub="Applications awaiting payment verification, and the payment records received." />
       <div className="tab-row">
         <button className={`tab ${tab === 'due' ? 'active' : ''}`} onClick={() => setTab('due')}>Payment due</button>
         <button className={`tab ${tab === 'received' ? 'active' : ''}`} onClick={() => setTab('received')}>Received</button>
