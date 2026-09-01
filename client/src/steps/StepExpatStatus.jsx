@@ -27,6 +27,10 @@ export default function StepExpatStatus({ data, setField, error }) {
       });
       setField('idOcr', { status: 'idle' });
       setField('id_autofilled', false);
+    } else if (data.is_expat !== isExpat && !(data.emergency_phone && data.emergency_phone.number)) {
+      // First pick (or re-pick with nothing entered yet): keep the friend/family dial
+      // consistent with the expat/returned rule without wiping anything out.
+      setField('emergency_phone', { dial: isExpat ? '+971' : '+91', number: '' });
     }
     setField('is_expat', isExpat);
   };

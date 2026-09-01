@@ -1,8 +1,9 @@
 import { COUNTRIES } from '../data/countries.js';
 
 /** value = { dial: '+91', number: '9876543210' } */
-export default function PhoneInput({ label, required = true, value, onChange, error, lockDial = false, sameAs, onSameAs, sameAsChecked }) {
+export default function PhoneInput({ label, required = true, value, onChange, error, lockDial = false, excludeDial = [], sameAs, onSameAs, sameAsChecked }) {
   const v = value || { dial: '+91', number: '' };
+  const options = excludeDial.length ? COUNTRIES.filter((c) => !excludeDial.includes(c.dial)) : COUNTRIES;
   return (
     <div className={`field ${error ? 'invalid' : ''}`}>
       <label>{label} {required && <span className="req">*</span>}</label>
@@ -13,7 +14,7 @@ export default function PhoneInput({ label, required = true, value, onChange, er
           onChange={(e) => onChange({ ...v, dial: e.target.value })}
           aria-label="Country code"
         >
-          {COUNTRIES.map((c) => (
+          {options.map((c) => (
             <option key={c.name} value={c.dial}>{c.dial} {c.name.length > 14 ? `${c.name.slice(0, 13)}…` : c.name}</option>
           ))}
         </select>

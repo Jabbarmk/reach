@@ -37,6 +37,7 @@ export default function Overview() {
 
   const count = (name) => stats?.byStatus.find((r) => r.status === name)?.count || 0;
   const active = count('Active');
+  const rejected = count('Rejected');
   const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const who = sessionStorage.getItem('reach_admin_user') || 'admin';
 
@@ -44,6 +45,7 @@ export default function Overview() {
     { label: 'Active members', value: active, ico: '✅', tone: 'green', chip: null },
     { label: 'Pending approvals', value: stats?.pending, ico: '⏳', tone: 'orange', chip: null, link: '/admin/approvals' },
     { label: 'Payments received', value: stats?.paid, ico: '₹', tone: 'teal', chip: null, link: '/admin/payments' },
+    { label: 'Rejected members', value: rejected, ico: '⛔', tone: 'red', chip: null, link: '/admin/members?status=Rejected' },
   ];
 
   return (

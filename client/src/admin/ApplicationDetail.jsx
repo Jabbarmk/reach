@@ -235,11 +235,17 @@ export default function ApplicationDetail() {
                 {data.payment.receipt_number && (
                   <>
                     <button className="btn btn-teal btn-sm"
-                      onClick={async () => { const url = await fetchReceiptBlob(data.payment.id); window.open(url, '_blank'); }}>
+                      onClick={async () => {
+                        try { const url = await fetchReceiptBlob(data.payment.id); window.open(url, '_blank'); }
+                        catch (err) { setError(err.message); }
+                      }}>
                       🧾 View Receipt PDF
                     </button>
                     <button className="btn btn-outline btn-sm"
-                      onClick={async () => { const url = await fetchReceiptBlob(data.payment.id); downloadBlob(url, `${data.payment.receipt_number}.pdf`); }}>
+                      onClick={async () => {
+                        try { const url = await fetchReceiptBlob(data.payment.id); downloadBlob(url, `${data.payment.receipt_number}.pdf`); }
+                        catch (err) { setError(err.message); }
+                      }}>
                       ⬇ Download
                     </button>
                   </>

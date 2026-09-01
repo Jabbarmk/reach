@@ -453,7 +453,7 @@ router.get('/receipts', requireScreen('payments'), async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.get('/receipts/:paymentId/pdf', requireScreen('payments'), async (req, res, next) => {
+router.get('/receipts/:paymentId/pdf', requireAnyScreen('payments', 'approvals'), async (req, res, next) => {
   try {
     const [rows] = await pool.query(
       `SELECT p.*, a.name, a.reference_no, a.membership_id, a.membership_type

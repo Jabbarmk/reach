@@ -16,11 +16,11 @@ export function TextField({ label, required = true, value, onChange, error, type
   );
 }
 
-export function SelectField({ label, required = true, value, onChange, options, error, placeholder = 'Select…' }) {
+export function SelectField({ label, required = true, value, onChange, options, error, placeholder = 'Select…', uppercase = false }) {
   return (
     <div className={`field ${error ? 'invalid' : ''}`}>
       <label>{label} {required && <span className="req">*</span>}</label>
-      <select value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
+      <select value={value ?? ''} onChange={(e) => onChange(e.target.value)} style={uppercase ? { textTransform: 'uppercase' } : undefined}>
         <option value="" disabled>{placeholder}</option>
         {options.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
@@ -31,7 +31,7 @@ export function SelectField({ label, required = true, value, onChange, options, 
 
 import { useEffect, useRef, useState } from 'react';
 
-export function SearchableSelect({ label, required = true, value, onChange, options, error, placeholder = 'Start typing to search…' }) {
+export function SearchableSelect({ label, required = true, value, onChange, options, error, placeholder = 'Start typing to search…', uppercase = false }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const wrapRef = useRef(null);
@@ -59,6 +59,7 @@ export function SearchableSelect({ label, required = true, value, onChange, opti
       <div className="ss-wrap">
         <input
           type="text"
+          style={uppercase ? { textTransform: 'uppercase' } : undefined}
           placeholder={value || placeholder}
           value={open ? query : value ?? ''}
           onFocus={() => { setOpen(true); setQuery(''); }}
@@ -76,6 +77,7 @@ export function SearchableSelect({ label, required = true, value, onChange, opti
               <button
                 type="button" key={opt}
                 className={`ss-option ${opt === value ? 'selected' : ''}`}
+                style={uppercase ? { textTransform: 'uppercase' } : undefined}
                 onMouseDown={(e) => { e.preventDefault(); pick(opt); }}
               >
                 {opt}

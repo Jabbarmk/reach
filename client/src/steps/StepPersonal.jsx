@@ -62,6 +62,7 @@ export default function StepPersonal({ data, setField, errors, cfg }) {
             options={cfg.options.panchayath || []}
             error={errors.panchayath}
             placeholder="Search panchayath / municipality…"
+            uppercase
           />
         )}
         {vis('blood_group') && <SelectField label={label('blood_group', 'Blood Group')} required={req('blood_group')} value={data.blood_group} onChange={(v) => setField('blood_group', v)} options={cfg.options.blood_group || []} error={errors.blood_group} />}
@@ -71,7 +72,7 @@ export default function StepPersonal({ data, setField, errors, cfg }) {
             onChange={(v) => setField('date_of_birth', v)} error={errors.date_of_birth} max={today}
           />
         )}
-        {vis('qualification') && <SelectField label={label('qualification', 'Qualification')} required={req('qualification')} value={data.qualification} onChange={(v) => setField('qualification', v)} options={cfg.options.qualification || []} error={errors.qualification} />}
+        {vis('qualification') && <SelectField label={label('qualification', 'Qualification')} required={req('qualification')} value={data.qualification} onChange={(v) => setField('qualification', v)} options={cfg.options.qualification || []} error={errors.qualification} uppercase />}
       </div>
 
       {(vis('aadhaar_upload') || vis('aadhaar_number')) && <div className="section-title">Aadhaar Card</div>}
