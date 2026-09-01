@@ -19,7 +19,7 @@ export function AppsTable({ rows, emptyText = 'No applications found.', renderAc
           <thead>
             <tr>
               <th>Reference</th><th>Name</th><th>Place</th><th>Plan</th>
-              <th>Expat</th><th>Aadhaar</th><th>Status</th><th>Payment</th><th>Submitted</th>
+              <th>Expat</th><th>ID Card</th><th>Status</th><th>Payment</th><th>Submitted</th>
               {renderActions && <th style={{ width: 130 }}>Actions</th>}
             </tr>
           </thead>

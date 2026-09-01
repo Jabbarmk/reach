@@ -10,11 +10,33 @@ async function recognize(file) {
 
 const NOISE = /government|india|aadhaar|aadhar|unique|identification|authority|uidai|male|female|dob|birth|year|address|father|husband|vid|issue|download|help|www|@/i;
 
-export async function extractAadhaar(file) {
+// Best-effort ID number extraction: any alphanumeric, digit-heavy token that
+// isn't obviously a date. Works across Aadhaar, PAN, passport, driving licence, etc.
+function extractGenericNumber(text) {
+  const tokens = text.split(/[\s,;:]+/).filter(Boolean);
+  const candidates = tokens.filter((t) => {
+    const clean = t.replace(/[^A-Za-z0-9]/g, '');
+    if (clean.length < 6 || clean.length > 18) return false;
+    if (!/\d{3,}/.test(clean)) return false;               // must contain a digit run
+    if (/^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(t)) return false; // not a date
+    return true;
+  });
+  // Prefer the longest digit-heavy candidate.
+  candidates.sort((a, b) => {
+    const da = (a.match(/\d/g) || []).length;
+    const db = (b.match(/\d/g) || []).length;
+    return db - da || b.length - a.length;
+  });
+  return candidates[0] ? candidates[0].replace(/[^A-Za-z0-9-]/g, '') : null;
+}
+
+// ID card (Aadhaar / PAN / driving licence / passport / any government ID) OCR.
+export async function extractIdCard(file) {
   const text = await recognize(file);
   const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
 
-  // Aadhaar number: 12 digits, usually grouped 4-4-4. Ignore 16-digit VID.
+  // Prefer an Aadhaar-style 12-digit number (grouped 4-4-4, ignoring 16-digit VID),
+  // falling back to any other alphanumeric ID-like token for non-Aadhaar documents.
   let number = null;
   const grouped = text.match(/(?<!\d)(\d{4})[\s-]+(\d{4})[\s-]+(\d{4})(?![\s-]*\d)/);
   if (grouped) number = grouped.slice(1, 4).join('');
@@ -22,6 +44,7 @@ export async function extractAadhaar(file) {
     const plain = text.replace(/[\s-]/g, '').match(/(?<!\d)(\d{12})(?!\d)/);
     if (plain) number = plain[1];
   }
+  if (!number) number = extractGenericNumber(text);
 
   // Name: the alphabetic line just above the DOB / Year-of-Birth line, else the
   // first clean alphabetic line that isn't boilerplate.
@@ -40,21 +63,6 @@ export async function extractAadhaar(file) {
 }
 
 export async function extractIdNumber(file) {
-  const text = await recognize(file);
-  const tokens = text.split(/[\s,;:]+/).filter(Boolean);
-  const candidates = tokens.filter((t) => {
-    const clean = t.replace(/[^A-Za-z0-9]/g, '');
-    if (clean.length < 6 || clean.length > 18) return false;
-    if (!/\d{3,}/.test(clean)) return false;               // must contain a digit run
-    if (/^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(t)) return false; // not a date
-    return true;
-  });
-  // Prefer the longest digit-heavy candidate.
-  candidates.sort((a, b) => {
-    const da = (a.match(/\d/g) || []).length;
-    const db = (b.match(/\d/g) || []).length;
-    return db - da || b.length - a.length;
-  });
-  const number = candidates[0] ? candidates[0].replace(/[^A-Za-z0-9-]/g, '') : null;
+  const number = extractGenericNumber(await recognize(file));
   return { number, success: Boolean(number) };
 }

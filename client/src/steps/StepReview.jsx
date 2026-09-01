@@ -1,4 +1,3 @@
-const maskAadhaar = (d) => (d && d.length === 12 ? `XXXX XXXX ${d.slice(-4)}` : '—');
 const maskId = (n) => (n ? (n.length <= 4 ? 'X'.repeat(n.length) : 'X'.repeat(n.length - 4) + n.slice(-4)) : '—');
 const phone = (p) => (p?.number ? `${p.dial} ${p.number}` : '—');
 
@@ -57,8 +56,8 @@ export default function StepReview({ data, setField, goTo, errors, cfg }) {
           ['Panchayath/Municipality', data.panchayath],
           ['Blood Group', data.blood_group],
           ['Date of Birth', data.date_of_birth],
-          ['Aadhaar Number', maskAadhaar(data.aadhaar_number)],
-          ['Aadhaar Card', docStatus(data.aadhaarDoc)],
+          ['ID Card Number', maskId(data.aadhaar_number)],
+          ['ID Card', docStatus(data.aadhaarDoc)],
           ['Qualification', data.qualification],
           ...customRows(['personal']),
         ]}

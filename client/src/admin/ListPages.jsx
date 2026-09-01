@@ -72,7 +72,7 @@ function Toolbar({ ctl, withStatus }) {
 
 const EDIT_TEXT_FIELDS = [
   ['name', 'Name'], ['father_name', "Father's Name"], ['house_name', 'House Name'], ['place', 'Place'],
-  ['post_office', 'Post Office'], ['aadhaar_number', 'Aadhaar Number'], ['email', 'E-mail'],
+  ['post_office', 'Post Office'], ['aadhaar_number', 'ID Card Number'], ['email', 'E-mail'],
   ['whatsapp_number', 'WhatsApp Number'], ['current_job', 'Current Job'], ['years_abroad', 'Years Abroad'],
   ['emergency_name', 'Friend/Family Name'], ['emergency_phone', 'Friend/Family Phone'],
 ];

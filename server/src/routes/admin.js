@@ -15,7 +15,11 @@ const router = express.Router();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads');
 
-const maskAadhaar = (n) => (n && n.length === 12 ? `XXXX XXXX ${n.slice(-4)}` : 'XXXX XXXX XXXX');
+const maskAadhaar = (n) => {
+  if (!n) return 'XXXX XXXX XXXX';
+  const s = String(n);
+  return s.length <= 4 ? 'X'.repeat(s.length) : 'X'.repeat(s.length - 4) + s.slice(-4);
+};
 const maskId = (n) => {
   if (!n) return null;
   const s = String(n);
@@ -201,9 +205,7 @@ router.put('/applications/:id', requireScreen('members'), async (req, res, next)
       return res.status(400).json({ error: 'Name cannot be empty' });
     }
     if (updates.aadhaar_number !== undefined && updates.aadhaar_number !== null) {
-      const digits = String(updates.aadhaar_number).replace(/\s/g, '');
-      if (digits && !/^\d{12}$/.test(digits)) return res.status(400).json({ error: 'Aadhaar number must be exactly 12 digits' });
-      updates.aadhaar_number = digits || '';
+      updates.aadhaar_number = String(updates.aadhaar_number).trim();
     }
     if (updates.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updates.email)) {
       return res.status(400).json({ error: 'E-mail is invalid' });

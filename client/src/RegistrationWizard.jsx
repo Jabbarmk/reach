@@ -63,7 +63,7 @@ function validateStep(step, d, cfg) {
   }
   if (step === 1) {
     if (req('photo') && !d.photo) e.photo = 'Photo is required.';
-    if (req('aadhaar_upload') && !d.aadhaarDoc) e.aadhaarDoc = `${label('aadhaar_upload', 'Aadhaar card upload')} is required.`;
+    if (req('aadhaar_upload') && !d.aadhaarDoc) e.aadhaarDoc = `${label('aadhaar_upload', 'ID card upload')} is required.`;
     reqText('name', d.name, 'Name');
     reqText('father_name', d.father_name, "Father's name");
     reqText('house_name', d.house_name, 'House name');
@@ -77,8 +77,7 @@ function validateStep(step, d, cfg) {
     }
     if (req('date_of_birth') && !d.date_of_birth) e.date_of_birth = 'Date of birth is required.';
     else if (d.date_of_birth && new Date(d.date_of_birth) > new Date()) e.date_of_birth = 'Date of birth cannot be in the future.';
-    if (req('aadhaar_number') && !d.aadhaar_number) e.aadhaar_number = 'Aadhaar number is required.';
-    else if (d.aadhaar_number && d.aadhaar_number.length !== 12) e.aadhaar_number = 'Aadhaar number must be exactly 12 digits.';
+    if (req('aadhaar_number') && !d.aadhaar_number.trim()) e.aadhaar_number = 'ID card number is required.';
     validateCustom(cfg, 'personal', d, e);
   }
   if (step === 2) {

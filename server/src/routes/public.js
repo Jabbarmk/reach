@@ -170,9 +170,8 @@ router.post(
         else if (new Date(d.date_of_birth) > new Date()) errors.push('Date of birth cannot be in the future');
       }
 
-      const aadhaar = String(d.aadhaar_number || '').replace(/\s/g, '');
-      if (need('aadhaar_number') && !aadhaar) errors.push(`${label('aadhaar_number', 'Aadhaar number')} is required`);
-      if (aadhaar && !/^\d{12}$/.test(aadhaar)) errors.push('Aadhaar number must be exactly 12 digits');
+      const aadhaar = String(d.aadhaar_number || '').trim();
+      if (need('aadhaar_number') && !aadhaar) errors.push(`${label('aadhaar_number', 'ID card number')} is required`);
 
       if (isExpat) {
         reqText('phone_abroad', d.phone_abroad, 'Phone number (abroad)');

@@ -2,16 +2,14 @@ import PhotoUpload from '../components/PhotoUpload.jsx';
 import DocUpload from '../components/DocUpload.jsx';
 import CustomFields from '../components/CustomFields.jsx';
 import { TextField, SelectField, SearchableSelect } from '../components/Field.jsx';
-import { extractAadhaar } from '../ocr.js';
-
-const formatAadhaar = (digits) => digits.replace(/(\d{4})(?=\d)/g, '$1 ').trim();
+import { extractIdCard } from '../ocr.js';
 
 export default function StepPersonal({ data, setField, errors, cfg }) {
   const today = new Date().toISOString().slice(0, 10);
   const { label, req, vis } = cfg;
 
-  const onAadhaarExtract = async (file) => {
-    const result = await extractAadhaar(file);
+  const onIdExtract = async (file) => {
+    const result = await extractIdCard(file);
     if (result.name && !data.name) {
       setField('name', result.name);
       setField('name_autofilled', true);
@@ -43,8 +41,8 @@ export default function StepPersonal({ data, setField, errors, cfg }) {
           label={label('name', 'Name')} required={req('name')} value={data.name}
           onChange={(v) => { setField('name', v); setField('name_autofilled', false); }}
           error={errors.name}
-          badge={data.name_autofilled ? 'Autofilled from Aadhaar' : null}
-          placeholder="Full name as on Aadhaar"
+          badge={data.name_autofilled ? 'Autofilled from ID card' : null}
+          placeholder="Full name as on ID card"
           uppercase
         />
       )}
@@ -75,15 +73,15 @@ export default function StepPersonal({ data, setField, errors, cfg }) {
         {vis('qualification') && <SelectField label={label('qualification', 'Qualification')} required={req('qualification')} value={data.qualification} onChange={(v) => setField('qualification', v)} options={cfg.options.qualification || []} error={errors.qualification} uppercase />}
       </div>
 
-      {(vis('aadhaar_upload') || vis('aadhaar_number')) && <div className="section-title">Aadhaar Card</div>}
+      {(vis('aadhaar_upload') || vis('aadhaar_number')) && <div className="section-title">ID Proof</div>}
       {vis('aadhaar_upload') && (
         <DocUpload
-          label={label('aadhaar_upload', 'Aadhaar Card Upload')}
+          label={label('aadhaar_upload', 'ID Card / Aadhar Card / Driving Licence / Passport')}
           required={req('aadhaar_upload')}
-          hint="Upload your Aadhaar card (PDF, JPG or PNG). We will try to read your name and Aadhaar number automatically."
+          hint="Upload any one: ID Card, Aadhar Card, Driving Licence or Passport (PDF, JPG or PNG). We will try to read your name and ID number automatically."
           doc={data.aadhaarDoc}
           onChange={(d) => setField('aadhaarDoc', d)}
-          onExtract={onAadhaarExtract}
+          onExtract={onIdExtract}
           ocrState={data.aadhaarOcr}
           setOcrState={(s) => setField('aadhaarOcr', s)}
           error={errors.aadhaarDoc}
@@ -91,14 +89,14 @@ export default function StepPersonal({ data, setField, errors, cfg }) {
       )}
       {vis('aadhaar_number') && (
         <TextField
-          label={label('aadhaar_number', 'Aadhaar Card Number')} required={req('aadhaar_number')}
-          value={formatAadhaar(data.aadhaar_number || '')}
-          onChange={(v) => { setField('aadhaar_number', v.replace(/\D/g, '').slice(0, 12)); setField('aadhaar_autofilled', false); }}
+          label={label('aadhaar_number', 'ID Card Number')} required={req('aadhaar_number')}
+          value={data.aadhaar_number || ''}
+          onChange={(v) => { setField('aadhaar_number', v); setField('aadhaar_autofilled', false); }}
           error={errors.aadhaar_number}
-          badge={data.aadhaar_autofilled ? 'Autofilled from Aadhaar' : null}
-          placeholder="XXXX XXXX XXXX"
-          inputMode="numeric"
-          hint="12 digits. Your Aadhaar number is stored securely and shown masked everywhere else."
+          badge={data.aadhaar_autofilled ? 'Autofilled from ID card' : null}
+          placeholder="Enter ID card number"
+          hint="Your ID card number is stored securely and shown masked everywhere else."
+          uppercase
         />
       )}
 

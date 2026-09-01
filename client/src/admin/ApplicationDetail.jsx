@@ -16,7 +16,7 @@ const statusPill = (s) => {
   return <span className={`pill ${map[s] || 'grey'}`}>{s}</span>;
 };
 
-const DOC_LABELS = { photo: 'Member Photo', aadhaar: 'Aadhaar Card', id_card_abroad: 'Foreign ID Card', payment_receipt: 'Payment Receipt' };
+const DOC_LABELS = { photo: 'Member Photo', aadhaar: 'ID Card', id_card_abroad: 'Foreign ID Card', payment_receipt: 'Payment Receipt' };
 
 export default function ApplicationDetail() {
   const { id } = useParams();
@@ -151,7 +151,7 @@ export default function ApplicationDetail() {
               <Row k="Date of Birth" v={app.date_of_birth} />
               <Row k="Qualification" v={app.qualification} />
               <Row
-                k="Aadhaar Number"
+                k="ID Card Number"
                 v={
                   <span style={{ fontFamily: 'monospace' }}>
                     {showAadhaar ? app.aadhaar_number.replace(/(\d{4})(?=\d)/g, '$1 ') : app.aadhaar_masked}
