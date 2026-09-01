@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import StepIndicator from './components/StepIndicator.jsx';
 import StepMembership from './steps/StepMembership.jsx';
 import StepPersonal from './steps/StepPersonal.jsx';
 import StepExpatStatus from './steps/StepExpatStatus.jsx';
 import StepDetails from './steps/StepDetails.jsx';
+import StepReview from './steps/StepReview.jsx';
 import Confirmation from './steps/Confirmation.jsx';
 import { api } from './api.js';
 import { buildConfig } from './formConfig.js';
@@ -116,6 +118,7 @@ function validateStep(step, d, cfg) {
 }
 
 export default function RegistrationWizard() {
+  const [step, setStep] = useState(0);
   const [data, setData] = useState(initialData);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -158,19 +161,24 @@ export default function RegistrationWizard() {
     );
   }
 
-  const submit = async () => {
-    const e = {
-      ...validateStep(0, data, cfg),
-      ...validateStep(1, data, cfg),
-      ...validateStep(2, data, cfg),
-      ...validateStep(3, data, cfg),
-      ...validateStep(4, data, cfg),
-    };
+  const next = () => {
+    const e = validateStep(step, data, cfg);
     setErrors(e);
     if (Object.keys(e).length) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
+    setStep((s) => s + 1);
+    window.scrollTo({ top: 0 });
+  };
+
+  const back = () => { setErrors({}); setStep((s) => s - 1); window.scrollTo({ top: 0 }); };
+  const goTo = (s) => { setErrors({}); setStep(s); window.scrollTo({ top: 0 }); };
+
+  const submit = async () => {
+    const e = validateStep(4, data, cfg);
+    setErrors(e);
+    if (Object.keys(e).length) return;
 
     setSubmitting(true);
     setSubmitError(null);
@@ -237,14 +245,9 @@ export default function RegistrationWizard() {
     );
   }
 
-  const errorCount = Object.keys(errors).length;
-
   return (
     <div className="page narrow">
-      <div className="reg-intro">
-        <h1>Membership Registration</h1>
-        <p>Complete every section below and submit — everything is on one page, no back-and-forth steps.</p>
-      </div>
+      <StepIndicator current={step} />
 
       {submitError && (
         <div className="alert error">
@@ -252,51 +255,27 @@ export default function RegistrationWizard() {
           <ul>{submitError.map((m, i) => <li key={i}>{m}</li>)}</ul>
         </div>
       )}
-      {errorCount > 0 && (
-        <div className="alert error">
-          {errorCount} field{errorCount === 1 ? '' : 's'} need attention — they are highlighted below.
-        </div>
+      {step === 1 && Object.keys(errors).length > 0 && (
+        <div className="alert error">Some required fields need attention — they are highlighted below.</div>
       )}
 
-      <div className="reg-sections">
-        <StepMembership data={data} setField={setField} error={errors.membership_type} cfg={cfg} />
-        <StepPersonal data={data} setField={setField} errors={errors} cfg={cfg} />
-        <StepExpatStatus data={data} setField={setField} error={errors.is_expat} />
-        {data.is_expat !== null && <StepDetails data={data} setField={setField} errors={errors} cfg={cfg} />}
+      {step === 0 && <StepMembership data={data} setField={setField} error={errors.membership_type} cfg={cfg} />}
+      {step === 1 && <StepPersonal data={data} setField={setField} errors={errors} cfg={cfg} />}
+      {step === 2 && <StepExpatStatus data={data} setField={setField} error={errors.is_expat} />}
+      {step === 3 && <StepDetails data={data} setField={setField} errors={errors} cfg={cfg} />}
+      {step === 4 && <StepReview data={data} setField={setField} goTo={goTo} errors={errors} cfg={cfg} />}
 
-        <div className="card">
-          <h2>Confirm &amp; Submit</h2>
-          <p className="sub">Please review the sections above, then confirm and submit your application.</p>
-
-          <div className="declaration-box">
-            <h3>സത്യപ്രസ്താവന</h3>
-            <p>ഞാൻ REACH Pravasi Welfare Society-യുടെ നിയമാവലികൾ പൂർണ്ണമായി അംഗീകരിക്കുകയും അച്ചടക്കത്തോടെ പ്രവർത്തിക്കുമെന്ന് ഉറപ്പുനൽകുകയും ചെയ്യുന്നു;</p>
-            <p>ഞാൻ നൽകിയ വിവരങ്ങൾ പൂര്‍ണമായും സത്യമാണെന്നും  തെറ്റായ വിവരങ്ങളോ സംഘടനാവിരുദ്ധ ലംഘനങ്ങളോ ക്രിമിനല്‍ കേസുകളോ തെളിഞ്ഞാൽ എന്റെ അംഗത്വം മുൻകൂട്ടി അറിയിപ്പില്ലാതെ റദ്ദാക്കാൻ സെൻട്രൽ കമ്മിറ്റിക്ക് പൂർണ്ണ അധികാരമുണ്ടായിരിക്കുന്നതാണെന്ന് ഞാന്‍ മനസ്സിലാക്കുകയും പൂര്‍ണ മനസ്സോടെ അംഗീകരിക്കുകയും ചെയ്യുന്നു.</p>
-          </div>
-
-          <label className="checkline" style={{ fontSize: 14, marginTop: 4 }}>
-            <input
-              type="checkbox" checked={data.confirm_correct}
-              onChange={(e) => setField('confirm_correct', e.target.checked)}
-            />
-            I confirm the information supplied above is correct.
-          </label>
-          <label className="checkline" style={{ fontSize: 14 }}>
-            <input
-              type="checkbox" checked={data.consent}
-              onChange={(e) => setField('consent', e.target.checked)}
-            />
-            I accept the membership terms and privacy policy, and consent to REACH processing my identity documents for membership verification.
-          </label>
-          {errors.consent && <div className="err" style={{ marginTop: 6 }}>{errors.consent}</div>}
-
-          <button
-            type="button" className="btn btn-green" style={{ marginTop: 20 }}
-            onClick={submit} disabled={submitting}
-          >
+      <div className="wizard-nav">
+        {step > 0 ? (
+          <button type="button" className="btn btn-outline" onClick={back}>← Back</button>
+        ) : <span />}
+        {step < 4 ? (
+          <button type="button" className="btn btn-primary" onClick={next}>Continue →</button>
+        ) : (
+          <button type="button" className="btn btn-green" onClick={submit} disabled={submitting}>
             {submitting ? 'Submitting…' : 'Submit Application ✓'}
           </button>
-        </div>
+        )}
       </div>
     </div>
   );
