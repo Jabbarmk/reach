@@ -46,6 +46,16 @@ export const api = {
   updatePayment: (id, formData) => request(`/api/admin/payments/${id}`, { method: 'PUT', body: formData }),
   deletePayment: (id) => request(`/api/admin/payments/${id}`, { method: 'DELETE' }),
   docUrl: (id) => `/api/admin/documents/${id}/file`,
+  // Accounts (ledger)
+  listLedgerCategories: (kind) => request(`/api/admin/ledger/categories${kind ? `?kind=${kind}` : ''}`),
+  createLedgerCategory: (c) => request('/api/admin/ledger/categories', { method: 'POST', json: c }),
+  updateLedgerCategory: (id, name) => request(`/api/admin/ledger/categories/${id}`, { method: 'PUT', json: { name } }),
+  deleteLedgerCategory: (id) => request(`/api/admin/ledger/categories/${id}`, { method: 'DELETE' }),
+  listLedgerEntries: (params = {}) => request(`/api/admin/ledger/entries?${new URLSearchParams(params)}`),
+  createLedgerEntry: (e) => request('/api/admin/ledger/entries', { method: 'POST', json: e }),
+  updateLedgerEntry: (id, e) => request(`/api/admin/ledger/entries/${id}`, { method: 'PUT', json: e }),
+  deleteLedgerEntry: (id) => request(`/api/admin/ledger/entries/${id}`, { method: 'DELETE' }),
+  ledgerSummary: (params = {}) => request(`/api/admin/ledger/reports/summary?${new URLSearchParams(params)}`),
   // Receipts
   listReceipts: (params = {}) => request(`/api/admin/receipts?${new URLSearchParams(params)}`),
   receiptUrl: (paymentId) => `/api/admin/receipts/${paymentId}/pdf`,

@@ -292,6 +292,14 @@ function RegistrationCard() {
               onChange={(e) => { setCfg({ ...cfg, closed_message: e.target.value }); setSaved(false); }}
             />
           </div>
+          <div className="field" style={{ marginTop: 16 }}>
+            <label>Declaration Text (shown as a required checkbox on the final Review step)</label>
+            <textarea
+              rows={6} value={cfg.declaration_text} style={{ width: '100%', resize: 'vertical' }}
+              onChange={(e) => { setCfg({ ...cfg, declaration_text: e.target.value }); setSaved(false); }}
+            />
+            <div className="hint">Applicants must tick this before they can submit their application. Leave a blank line between paragraphs.</div>
+          </div>
           <button className="btn btn-primary" onClick={save} disabled={busy}>
             {busy ? 'Saving…' : 'Save Registration Settings'}
           </button>
@@ -467,7 +475,7 @@ function ReferenceFormatCard() {
 
 const SCREEN_LABELS = {
   overview: 'Overview', members: 'Members', approvals: 'Approvals', payments: 'Payments',
-  events: 'Events', settings: 'Settings', users: 'Users', form: 'Form Builder',
+  events: 'Events', settings: 'Settings', users: 'Users', form: 'Form Builder', ledger: 'Accounts',
 };
 const ALL_SCREENS = Object.keys(SCREEN_LABELS);
 

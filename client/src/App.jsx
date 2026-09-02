@@ -7,6 +7,7 @@ import Overview from './admin/Overview.jsx';
 import ApplicationDetail from './admin/ApplicationDetail.jsx';
 import { MembersPage, ApprovalsPage, PaymentsPage, EventsPage } from './admin/ListPages.jsx';
 import ReceiptsPage from './admin/ReceiptsPage.jsx';
+import AccountsPage from './admin/AccountsPage.jsx';
 import UsersPage from './admin/UsersPage.jsx';
 import SettingsPage from './admin/SettingsPage.jsx';
 import FormBuilder from './admin/FormBuilder.jsx';
@@ -50,6 +51,9 @@ export default function App() {
           <Route element={<ScreenGuard screen="payments" />}>
             <Route path="payments" element={<PaymentsPage />} />
             <Route path="receipts" element={<ReceiptsPage />} />
+          </Route>
+          <Route element={<ScreenGuard screen="ledger" />}>
+            <Route path="accounts" element={<AccountsPage />} />
           </Route>
           <Route element={<ScreenGuard screen="events" />}>
             <Route path="events" element={<EventsPage />} />

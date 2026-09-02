@@ -58,6 +58,7 @@ router.get('/home-content', async (req, res, next) => {
 const REGISTRATION_DEFAULTS = {
   open: true,
   closed_message: 'New Membership Registration Temporarily Closed, Contact Admin',
+  declaration_text: 'ഞാൻ നൽകിയ വിവരങ്ങൾ പൂർണ്ണമായും സത്യമാണെന്നും REACH Pravasi Welfare Society യുടെ നിയമാവലികൾ പാലിക്കാൻ ബാധ്യസ്ഥനാണെന്നും ഞാൻ സാക്ഷ്യപ്പെടുത്തുന്നു.\n\nഅപേക്ഷയുടെ മേൽ നടപടികൾക്ക് ആവശ്യമെങ്കിൽ കൂടുതൽ വിവരങ്ങൾ ആവശ്യപ്പെടാനും നടപടികൾക്ക് വിധേയമായി അപേക്ഷ നിരസിക്കാനും തെറ്റായ വിവരങ്ങൾ നൽകുകയോ അച്ചടക്കലംഘനമോ ഉണ്ടായാൽ നൽകിയ അംഗത്വം റദ്ദാക്കാനും സെൻട്രൽ കമ്മിറ്റിക്ക് പൂർണ്ണ അധികാരം ഉണ്ടെന്ന് ഞാൻ അംഗീകരിക്കുന്നു.',
 };
 
 async function getRegistrationStatus() {
@@ -211,6 +212,7 @@ router.post(
       }
 
       if (d.consent_accepted !== '1' && d.consent_accepted !== 'true') errors.push('You must accept the terms and privacy policy');
+      if (d.declaration_accepted !== '1' && d.declaration_accepted !== 'true') errors.push('You must accept the declaration to submit');
 
       if (errors.length) return res.status(400).json({ errors });
 
@@ -226,8 +228,8 @@ router.post(
              panchayath, blood_group, date_of_birth, aadhaar_number, qualification, is_expat,
              phone_abroad, home_contact_number, id_card_number_abroad, working_country, city, retired_year, phone_india,
              whatsapp_number, email, current_job, years_abroad, emergency_name, emergency_phone,
-             custom_data, status, payment_status, consent_accepted)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'Pending Verification', 'Unpaid', 1)`,
+             custom_data, status, payment_status, consent_accepted, declaration_accepted)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'Pending Verification', 'Unpaid', 1, 1)`,
           [
             referenceNo, plan.code, fee,
             (d.name || '').trim(), (d.father_name || '').trim(), (d.house_name || '').trim(),

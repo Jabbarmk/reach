@@ -3,7 +3,7 @@ import { api } from '../api.js';
 
 const SCREEN_LABELS = {
   overview: 'Overview', members: 'Members', approvals: 'Approvals', payments: 'Payments',
-  events: 'Events', settings: 'Settings', users: 'Users', form: 'Form Builder',
+  events: 'Events', settings: 'Settings', users: 'Users', form: 'Form Builder', ledger: 'Accounts',
 };
 const ROLE_TONES = ['blue', 'teal', 'orange', 'green', 'grey'];
 const roleTone = (name) => ROLE_TONES[[...String(name)].reduce((a, c) => a + c.charCodeAt(0), 0) % ROLE_TONES.length];

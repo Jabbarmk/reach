@@ -9,6 +9,7 @@ const NAV = [
   { to: '/admin/events', label: 'Events', icon: '📅', screen: 'events' },
   { to: '/admin/payments', label: 'Payments', icon: '₹', screen: 'payments' },
   { to: '/admin/receipts', label: 'Receipts', icon: '🧾', screen: 'payments' },
+  { to: '/admin/accounts', label: 'Accounts', icon: '📒', screen: 'ledger' },
   { to: '/admin/form-builder', label: 'Form Builder', icon: '🛠', screen: 'form' },
   { to: '/admin/users', label: 'Users', icon: '🧑‍💼', screen: 'users' },
   { to: '/admin/settings', label: 'Settings', icon: '⚙', screen: 'settings' },

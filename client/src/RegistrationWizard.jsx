@@ -36,6 +36,7 @@ const initialData = {
   custom: {},
   confirm_correct: false,
   consent: false,
+  declaration: false,
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -111,7 +112,7 @@ function validateStep(step, d, cfg) {
     validateCustom(cfg, 'details', d, e);
   }
   if (step === 4) {
-    if (!d.confirm_correct || !d.consent) e.consent = 'Please tick both confirmations before submitting.';
+    if (!d.confirm_correct || !d.consent || !d.declaration) e.consent = 'Please tick all confirmations before submitting.';
   }
   return e;
 }
@@ -224,6 +225,7 @@ export default function RegistrationWizard() {
       fd.append('emergency_phone', joinPhone(data.emergency_phone));
       fd.append('custom', JSON.stringify(data.custom || {}));
       fd.append('consent_accepted', '1');
+      fd.append('declaration_accepted', data.declaration ? '1' : '0');
 
       const res = await api.submitApplication(fd);
       setResult(res);
