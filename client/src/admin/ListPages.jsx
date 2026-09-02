@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
-import { api, fetchDocBlob, setToken } from '../api.js';
+import { api, fetchDocBlob, setToken, exportCsv } from '../api.js';
 import { AppsTable, MemberGrid } from './shared.jsx';
 import PaymentModal from './PaymentModal.jsx';
 
@@ -292,6 +292,19 @@ export function MembersPage() {
 
   const deletedEmptyText = 'No deleted members — the recycle bin is empty.';
 
+  const MEMBER_COLUMNS = [
+    { label: 'Reference/Membership ID', value: (r) => r.membership_id || r.reference_no },
+    { label: 'Name', value: 'name' },
+    { label: 'Place', value: 'place' },
+    { label: 'Plan', value: (r) => (r.membership_type === 'lifetime' ? 'Lifetime ₹2,000' : 'Two-Year ₹300') },
+    { label: 'Expat', value: (r) => (r.is_expat ? 'Yes' : 'No') },
+    { label: 'ID Card', value: 'aadhaar_number' },
+    { label: 'Status', value: 'status' },
+    { label: 'Payment', value: (r) => (r.payment_status === 'Paid' ? 'Paid' : 'Unpaid') },
+    { label: 'Submitted', value: (r) => new Date(r.created_at).toLocaleDateString('en-IN') },
+  ];
+  const exportMembers = () => exportCsv(`${tab === 'deleted' ? 'deleted-members' : 'members'}-${new Date().toISOString().slice(0, 10)}.csv`, MEMBER_COLUMNS, ctl.rows);
+
   return (
     <>
       <PageHead title="Members" sub="All membership applications and registered members.">
@@ -316,6 +329,8 @@ export function MembersPage() {
             <button className={`seg-btn ${cardSize === 'compact' ? 'active' : ''}`} onClick={() => setCardSize('compact')}>Compact</button>
           </div>
         )}
+        <span style={{ flex: 1 }} />
+        <button className="btn btn-outline btn-sm" onClick={exportMembers} disabled={!ctl.rows?.length}>⬇ Export to Excel</button>
       </div>
 
       {tab === 'members' ? (
@@ -355,16 +370,9 @@ export function ApprovalsPage() {
 function PaymentsSummary({ rows }) {
   if (!rows) return null;
   const total = rows.reduce((s, p) => s + Number(p.amount), 0);
-  const now = new Date();
-  const thisMonth = rows
-    .filter((p) => { const d = new Date(p.paid_on); return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); })
-    .reduce((s, p) => s + Number(p.amount), 0);
-  const avg = rows.length ? total / rows.length : 0;
   const items = [
     { label: 'Total Collected', value: `₹${total.toLocaleString('en-IN')}`, tone: '' },
     { label: 'Payments', value: rows.length, tone: 'blue' },
-    { label: 'This Month', value: `₹${thisMonth.toLocaleString('en-IN')}`, tone: 'green' },
-    { label: 'Avg. Payment', value: `₹${Math.round(avg).toLocaleString('en-IN')}`, tone: 'orange' },
   ];
   return (
     <div className="mini-stats" style={{ marginBottom: 16 }}>
@@ -438,6 +446,18 @@ function ReceivedPaymentsTab({ isAdmin }) {
   const clearFilters = () => { setSearch(''); setMethodFilter(''); setCollectedByFilter(''); setRecordedByFilter(''); };
   const filtersActive = methodFilter || collectedByFilter || recordedByFilter;
 
+  const PAYMENT_COLUMNS = [
+    { label: 'Member', value: 'name' },
+    { label: 'Membership ID', value: (p) => p.membership_id || p.reference_no },
+    { label: 'Amount', value: (p) => Number(p.amount) },
+    { label: 'Method', value: 'method' },
+    { label: 'Collected By', value: (p) => (p.collected_by ? userLabel(p.collected_by) : '') },
+    { label: 'Date', value: 'paid_on' },
+    { label: 'Recorded By', value: (p) => userName(p.recorded_by) },
+    { label: 'Receipt', value: (p) => (p.receipt_doc_id ? 'Yes' : 'No') },
+  ];
+  const exportPayments = () => exportCsv(`payments-received-${new Date().toISOString().slice(0, 10)}.csv`, PAYMENT_COLUMNS, rows);
+
   return (
     <>
       {error && <div className="alert error">{error}</div>}
@@ -462,6 +482,8 @@ function ReceivedPaymentsTab({ isAdmin }) {
         </select>
         <button className="btn btn-primary btn-sm" onClick={() => load()}>Search</button>
         {filtersActive && <button className="btn btn-ghost btn-sm" onClick={clearFilters}>Clear filters</button>}
+        <span style={{ flex: 1 }} />
+        <button className="btn btn-outline btn-sm" onClick={exportPayments} disabled={!rows?.length}>⬇ Export to Excel</button>
       </div>
       <div className="table-card">
         <div className="table-scroll">

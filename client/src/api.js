@@ -78,6 +78,10 @@ export const api = {
   saveIdFormat: (cfg) => request('/api/admin/settings/membership-id', { method: 'PUT', json: cfg }),
   getReferenceFormat: () => request('/api/admin/settings/reference-format'),
   saveReferenceFormat: (cfg) => request('/api/admin/settings/reference-format', { method: 'PUT', json: cfg }),
+  listDeclarations: () => request('/api/admin/settings/declarations'),
+  createDeclaration: (text) => request('/api/admin/settings/declarations', { method: 'POST', json: { text } }),
+  updateDeclaration: (id, text) => request(`/api/admin/settings/declarations/${id}`, { method: 'PUT', json: { text } }),
+  deleteDeclaration: (id) => request(`/api/admin/settings/declarations/${id}`, { method: 'DELETE' }),
   uploadLogo: (formData) => request('/api/admin/settings/logo', { method: 'POST', body: formData }),
   resetLogo: () => request('/api/admin/settings/logo', { method: 'DELETE' }),
   getSmtp: () => request('/api/admin/settings/smtp'),
@@ -126,4 +130,24 @@ export function downloadBlob(blobUrl, filename) {
   document.body.appendChild(a);
   a.click();
   a.remove();
+}
+
+// Exports rows to a CSV file (opens directly in Excel). columns: [{ label, value }], where
+// value is either a row key or a (row) => value function. No server round-trip — works on
+// whatever rows are currently loaded/filtered in the table.
+export function exportCsv(filename, columns, rows) {
+  const esc = (v) => {
+    const s = v === null || v === undefined ? '' : String(v);
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const cell = (col, row) => (typeof col.value === 'function' ? col.value(row) : row[col.value]);
+  const lines = [
+    columns.map((c) => esc(c.label)).join(','),
+    ...(rows || []).map((r) => columns.map((c) => esc(cell(c, r))).join(',')),
+  ];
+  const BOM = String.fromCharCode(0xfeff);
+  const blob = new Blob([BOM + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  downloadBlob(url, filename);
+  URL.revokeObjectURL(url);
 }

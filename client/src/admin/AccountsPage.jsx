@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { api } from '../api.js';
+import { api, exportCsv } from '../api.js';
 import LedgerEntryModal from './LedgerEntryModal.jsx';
+
+const LEDGER_COLUMNS = [
+  { label: 'Date', value: (r) => new Date(r.entry_date).toLocaleDateString('en-IN') },
+  { label: 'Category', value: 'category_name' },
+  { label: 'Amount', value: (r) => Number(r.amount) },
+  { label: 'Method', value: (r) => r.method || '' },
+  { label: 'Note', value: (r) => r.note || '' },
+  { label: 'Recorded By', value: 'recorded_by' },
+];
 
 const KIND_META = {
   received: { label: 'Received', addLabel: '+ Money Received', emptyText: 'No money received recorded yet.' },
@@ -48,6 +57,8 @@ function LedgerEntriesTab({ kind, isAdmin }) {
     try { await api.deleteLedgerEntry(r.id); load(); } catch (err) { setError(err.message); }
   };
 
+  const exportEntries = () => exportCsv(`accounts-${kind}-${new Date().toISOString().slice(0, 10)}.csv`, LEDGER_COLUMNS, rows);
+
   return (
     <>
       {error && <div className="alert error">{error}</div>}
@@ -61,6 +72,7 @@ function LedgerEntriesTab({ kind, isAdmin }) {
         <input type="date" value={to} onChange={(e) => setTo(e.target.value)} title="To date" />
         <button className="btn btn-primary btn-sm" onClick={load}>Search</button>
         <span style={{ flex: 1 }} />
+        <button className="btn btn-outline btn-sm" onClick={exportEntries} disabled={!rows?.length}>⬇ Export to Excel</button>
         <button className="btn btn-green btn-sm" onClick={() => setModal({ mode: 'create' })}>{meta.addLabel}</button>
       </div>
 

@@ -1,6 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, fetchReceiptBlob, downloadBlob, setToken } from '../api.js';
+import { api, fetchReceiptBlob, downloadBlob, setToken, exportCsv } from '../api.js';
+
+const RECEIPT_COLUMNS = [
+  { label: 'Receipt No.', value: 'receipt_number' },
+  { label: 'Member', value: 'name' },
+  { label: 'Membership ID', value: (r) => r.membership_id || '' },
+  { label: 'Plan', value: (r) => (r.membership_type === 'lifetime' ? 'Lifetime' : 'Two-Year') },
+  { label: 'Amount', value: (r) => Number(r.amount) },
+  { label: 'Method', value: 'method' },
+  { label: 'Date', value: 'paid_on' },
+  { label: 'Recorded By', value: 'recorded_by' },
+];
 
 export default function ReceiptsPage() {
   const [rows, setRows] = useState(null);
@@ -37,6 +48,8 @@ export default function ReceiptsPage() {
     finally { setBusyId(null); }
   };
 
+  const exportReceipts = () => exportCsv(`receipts-${new Date().toISOString().slice(0, 10)}.csv`, RECEIPT_COLUMNS, rows);
+
   return (
     <>
       <div className="ovr-head" style={{ marginBottom: 18 }}>
@@ -56,6 +69,8 @@ export default function ReceiptsPage() {
           onKeyDown={(e) => e.key === 'Enter' && load()}
         />
         <button className="btn btn-primary btn-sm" onClick={() => load()}>Search</button>
+        <span style={{ flex: 1 }} />
+        <button className="btn btn-outline btn-sm" onClick={exportReceipts} disabled={!rows?.length}>⬇ Export to Excel</button>
       </div>
 
       <div className="table-card">
