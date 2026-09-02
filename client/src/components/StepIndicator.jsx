@@ -1,4 +1,4 @@
-const STEPS = ['Membership', 'Personal Info', 'Expat Status', 'Details', 'Review'];
+const STEPS = ['Membership', 'Personal Info', 'Expat Status', 'Details', 'Review', 'Declaration'];
 
 export default function StepIndicator({ current }) {
   const pct = Math.min(100, Math.round((current / (STEPS.length - 1)) * 100));

@@ -292,19 +292,78 @@ function RegistrationCard() {
               onChange={(e) => { setCfg({ ...cfg, closed_message: e.target.value }); setSaved(false); }}
             />
           </div>
-          <div className="field" style={{ marginTop: 16 }}>
-            <label>Declaration Text (shown as a required checkbox on the final Review step)</label>
-            <textarea
-              rows={6} value={cfg.declaration_text} style={{ width: '100%', resize: 'vertical' }}
-              onChange={(e) => { setCfg({ ...cfg, declaration_text: e.target.value }); setSaved(false); }}
-            />
-            <div className="hint">Applicants must tick this before they can submit their application. Leave a blank line between paragraphs.</div>
-          </div>
           <button className="btn btn-primary" onClick={save} disabled={busy}>
             {busy ? 'Saving…' : 'Save Registration Settings'}
           </button>
         </>
       )}
+    </div>
+  );
+}
+
+function DeclarationsCard() {
+  const [declarations, setDeclarations] = useState(null);
+  const [newText, setNewText] = useState('');
+  const [editing, setEditing] = useState(null); // {id, text}
+  const [error, setError] = useState(null);
+
+  const load = async () => {
+    try { setDeclarations((await api.listDeclarations()).declarations); } catch (err) { setError(err.message); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const add = async () => {
+    if (!newText.trim()) return;
+    try { await api.createDeclaration(newText); setNewText(''); setError(null); load(); }
+    catch (err) { setError(err.message); }
+  };
+  const saveEdit = async () => {
+    try { await api.updateDeclaration(editing.id, editing.text); setEditing(null); setError(null); load(); }
+    catch (err) { setError(err.message); }
+  };
+  const remove = async (d) => {
+    if (!window.confirm('Remove this declaration?')) return;
+    try { await api.deleteDeclaration(d.id); load(); } catch (err) { setError(err.message); }
+  };
+
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <h2 style={{ fontSize: 17, marginBottom: 4 }}>Declarations (സത്യപ്രസ്താവന)</h2>
+      <p className="sub">Shown together as one declaration box on the final step of the registration form, with a single required checkbox. Add, edit or remove individual statements below.</p>
+      {error && <div className="alert error">{error}</div>}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+        <textarea
+          rows={2}
+          style={{ flex: 1, padding: '10px 13px', border: '1.5px solid var(--line)', borderRadius: 10, resize: 'vertical' }}
+          placeholder="Add a new declaration statement…"
+          value={newText}
+          onChange={(e) => setNewText(e.target.value)}
+        />
+        <button className="btn btn-primary btn-sm" onClick={add} disabled={!newText.trim()} style={{ alignSelf: 'flex-start' }}>Add</button>
+      </div>
+      {!declarations && <div className="empty-note"><span className="spinner lg" /></div>}
+      {declarations?.map((d) => (
+        <div key={d.id} className="opt-row" style={{ alignItems: 'flex-start' }}>
+          {editing?.id === d.id ? (
+            <>
+              <textarea
+                autoFocus rows={3} value={editing.text}
+                onChange={(e) => setEditing({ ...editing, text: e.target.value })}
+                style={{ flex: 1, padding: '7px 11px', border: '1.5px solid var(--blue-600)', borderRadius: 8, resize: 'vertical' }}
+              />
+              <button className="btn btn-primary btn-sm" onClick={saveEdit}>Save</button>
+              <button className="btn btn-outline btn-sm" onClick={() => setEditing(null)}>Cancel</button>
+            </>
+          ) : (
+            <>
+              <span style={{ flex: 1, whiteSpace: 'pre-line' }}>{d.text}</span>
+              <button className="btn btn-outline btn-sm" onClick={() => setEditing({ id: d.id, text: d.text })}>Edit</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => remove(d)}>Delete</button>
+            </>
+          )}
+        </div>
+      ))}
+      {declarations && !declarations.length && <div className="empty-note">No declarations yet — add the first one above.</div>}
     </div>
   );
 }
@@ -640,6 +699,7 @@ export default function SettingsPage() {
       </div>
 
       <RegistrationCard />
+      <DeclarationsCard />
       <LogoCard />
       <HomeContentCard />
       <IdFormatCard />

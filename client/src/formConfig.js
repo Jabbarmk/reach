@@ -20,6 +20,7 @@ export function buildConfig(raw) {
   const map = Object.fromEntries((src.fields || []).map((f) => [f.field_key, f]));
   return {
     registration: src.registration || { open: true },
+    declarations: src.declarations || [],
     plans: src.plans || [],
     options: src.options || {},
     map,

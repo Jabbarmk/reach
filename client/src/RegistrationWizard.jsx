@@ -5,6 +5,7 @@ import StepPersonal from './steps/StepPersonal.jsx';
 import StepExpatStatus from './steps/StepExpatStatus.jsx';
 import StepDetails from './steps/StepDetails.jsx';
 import StepReview from './steps/StepReview.jsx';
+import StepDeclaration from './steps/StepDeclaration.jsx';
 import Confirmation from './steps/Confirmation.jsx';
 import { api } from './api.js';
 import { buildConfig } from './formConfig.js';
@@ -34,9 +35,7 @@ const initialData = {
   emergency_name: '',
   emergency_phone: { dial: '+91', number: '' },
   custom: {},
-  confirm_correct: false,
-  consent: false,
-  declaration: false,
+  declaration_checks: {},
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -111,8 +110,10 @@ function validateStep(step, d, cfg) {
     if (req('emergency_phone') && !phoneOk(d.emergency_phone)) e.emergency_phone = 'Phone number is required.';
     validateCustom(cfg, 'details', d, e);
   }
-  if (step === 4) {
-    if (!d.confirm_correct || !d.consent || !d.declaration) e.consent = 'Please tick all confirmations before submitting.';
+  if (step === 5) {
+    if (!(cfg.declarations || []).every((dec) => d.declaration_checks?.[dec.id])) {
+      e.declaration = 'Please tick every declaration to continue.';
+    }
   }
   return e;
 }
@@ -176,7 +177,7 @@ export default function RegistrationWizard() {
   const goTo = (s) => { setErrors({}); setStep(s); window.scrollTo({ top: 0 }); };
 
   const submit = async () => {
-    const e = validateStep(4, data, cfg);
+    const e = validateStep(5, data, cfg);
     setErrors(e);
     if (Object.keys(e).length) return;
 
@@ -225,7 +226,8 @@ export default function RegistrationWizard() {
       fd.append('emergency_phone', joinPhone(data.emergency_phone));
       fd.append('custom', JSON.stringify(data.custom || {}));
       fd.append('consent_accepted', '1');
-      fd.append('declaration_accepted', data.declaration ? '1' : '0');
+      const allDeclared = (cfg.declarations || []).every((dec) => data.declaration_checks?.[dec.id]);
+      fd.append('declaration_accepted', allDeclared ? '1' : '0');
 
       const res = await api.submitApplication(fd);
       setResult(res);
@@ -264,16 +266,20 @@ export default function RegistrationWizard() {
       {step === 1 && <StepPersonal data={data} setField={setField} errors={errors} cfg={cfg} />}
       {step === 2 && <StepExpatStatus data={data} setField={setField} error={errors.is_expat} />}
       {step === 3 && <StepDetails data={data} setField={setField} errors={errors} cfg={cfg} />}
-      {step === 4 && <StepReview data={data} setField={setField} goTo={goTo} errors={errors} cfg={cfg} />}
+      {step === 4 && <StepReview data={data} goTo={goTo} cfg={cfg} />}
+      {step === 5 && <StepDeclaration data={data} setField={setField} error={errors.declaration} cfg={cfg} />}
 
       <div className="wizard-nav">
         {step > 0 ? (
           <button type="button" className="btn btn-outline" onClick={back}>← Back</button>
         ) : <span />}
-        {step < 4 ? (
+        {step < 5 ? (
           <button type="button" className="btn btn-primary" onClick={next}>Continue →</button>
         ) : (
-          <button type="button" className="btn btn-green" onClick={submit} disabled={submitting}>
+          <button
+            type="button" className="btn btn-green" onClick={submit}
+            disabled={submitting || !(cfg.declarations || []).every((dec) => data.declaration_checks?.[dec.id])}
+          >
             {submitting ? 'Submitting…' : 'Submit Application ✓'}
           </button>
         )}

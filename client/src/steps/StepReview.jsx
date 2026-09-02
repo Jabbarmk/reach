@@ -22,7 +22,7 @@ function Block({ title, onEdit, rows }) {
 
 import { planValidityText } from '../formConfig.js';
 
-export default function StepReview({ data, setField, goTo, errors, cfg }) {
+export default function StepReview({ data, goTo, cfg }) {
   const isExpat = data.is_expat === true;
   const plan = cfg.plans.find((p) => p.code === data.membership_type);
   const planName = plan?.name || data.membership_type;
@@ -100,38 +100,6 @@ export default function StepReview({ data, setField, goTo, errors, cfg }) {
               ]
         }
       />
-
-      <label className="checkline" style={{ fontSize: 14, marginTop: 4 }}>
-        <input
-          type="checkbox" checked={data.confirm_correct}
-          onChange={(e) => setField('confirm_correct', e.target.checked)}
-        />
-        I confirm the information supplied above is correct.
-      </label>
-      <label className="checkline" style={{ fontSize: 14 }}>
-        <input
-          type="checkbox" checked={data.consent}
-          onChange={(e) => setField('consent', e.target.checked)}
-        />
-        I accept the membership terms and privacy policy, and consent to REACH processing my identity documents for membership verification.
-      </label>
-
-      {cfg.registration?.declaration_text && (
-        <div className="declaration-box" style={{ marginTop: 16 }}>
-          {cfg.registration.declaration_text.split('\n\n').map((para, i) => (
-            <p key={i} style={{ whiteSpace: 'pre-line' }}>{para}</p>
-          ))}
-        </div>
-      )}
-      <label className="checkline" style={{ fontSize: 14, marginTop: 4 }}>
-        <input
-          type="checkbox" checked={data.declaration}
-          onChange={(e) => setField('declaration', e.target.checked)}
-        />
-        ഞാൻ ഇത് വായിച്ചു മനസ്സിലാക്കി അംഗീകരിക്കുന്നു (I have read and accept the above declaration).
-      </label>
-
-      {errors.consent && <div className="err" style={{ marginTop: 6 }}>{errors.consent}</div>}
     </div>
   );
 }

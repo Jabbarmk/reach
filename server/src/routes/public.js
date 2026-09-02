@@ -58,7 +58,6 @@ router.get('/home-content', async (req, res, next) => {
 const REGISTRATION_DEFAULTS = {
   open: true,
   closed_message: 'New Membership Registration Temporarily Closed, Contact Admin',
-  declaration_text: 'ഞാൻ നൽകിയ വിവരങ്ങൾ പൂർണ്ണമായും സത്യമാണെന്നും REACH Pravasi Welfare Society യുടെ നിയമാവലികൾ പാലിക്കാൻ ബാധ്യസ്ഥനാണെന്നും ഞാൻ സാക്ഷ്യപ്പെടുത്തുന്നു.\n\nഅപേക്ഷയുടെ മേൽ നടപടികൾക്ക് ആവശ്യമെങ്കിൽ കൂടുതൽ വിവരങ്ങൾ ആവശ്യപ്പെടാനും നടപടികൾക്ക് വിധേയമായി അപേക്ഷ നിരസിക്കാനും തെറ്റായ വിവരങ്ങൾ നൽകുകയോ അച്ചടക്കലംഘനമോ ഉണ്ടായാൽ നൽകിയ അംഗത്വം റദ്ദാക്കാനും സെൻട്രൽ കമ്മിറ്റിക്ക് പൂർണ്ണ അധികാരം ഉണ്ടെന്ന് ഞാൻ അംഗീകരിക്കുന്നു.',
 };
 
 async function getRegistrationStatus() {
@@ -74,7 +73,8 @@ async function loadFormConfig() {
   const options = {};
   for (const row of optionRows) (options[row.list_key] ||= []).push(row.value);
   const registration = await getRegistrationStatus();
-  return { fields, plans, options, registration };
+  const [declarations] = await pool.query('SELECT id, text FROM declarations ORDER BY sort_order, id');
+  return { fields, plans, options, registration, declarations };
 }
 
 // Public: everything the registration form needs to render itself.
