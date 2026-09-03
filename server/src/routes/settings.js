@@ -8,6 +8,7 @@ import { pool } from '../db.js';
 import { requireAdmin, requireScreen } from '../middleware/auth.js';
 import { buildTransport, getSmtpConfig } from '../mailer.js';
 import { mergeHomeContent } from '../homeContent.js';
+import { mergeMemberCountries } from '../memberCountries.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BRANDING_DIR = path.join(__dirname, '..', '..', 'branding');
@@ -100,6 +101,24 @@ router.put('/home-content', async (req, res, next) => {
   try {
     const merged = mergeHomeContent(req.body || {});
     await putSetting('home_content', merged);
+    res.json(merged);
+  } catch (e) { next(e); }
+});
+
+/* ===== Member countries marquee ===== */
+router.get('/member-countries', async (req, res, next) => {
+  try {
+    const [rows] = await pool.query("SELECT value FROM settings WHERE name = 'member_countries'");
+    let stored = null;
+    if (rows.length) { try { stored = JSON.parse(rows[0].value); } catch { stored = null; } }
+    res.json(mergeMemberCountries(stored));
+  } catch (e) { next(e); }
+});
+
+router.put('/member-countries', async (req, res, next) => {
+  try {
+    const merged = mergeMemberCountries(req.body || {});
+    await putSetting('member_countries', merged);
     res.json(merged);
   } catch (e) { next(e); }
 });

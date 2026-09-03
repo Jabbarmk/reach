@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { pool } from '../db.js';
 import { sendMail, templates } from '../mailer.js';
 import { mergeHomeContent } from '../homeContent.js';
+import { mergeMemberCountries } from '../memberCountries.js';
 import { getLogoPath } from '../branding.js';
 
 const router = express.Router();
@@ -52,6 +53,16 @@ router.get('/home-content', async (req, res, next) => {
     let stored = null;
     if (rows.length) { try { stored = JSON.parse(rows[0].value); } catch { stored = null; } }
     res.json(mergeHomeContent(stored));
+  } catch (e) { next(e); }
+});
+
+// Public: homepage "Our Members Country" marquee list.
+router.get('/member-countries', async (req, res, next) => {
+  try {
+    const [rows] = await pool.query("SELECT value FROM settings WHERE name = 'member_countries'");
+    let stored = null;
+    if (rows.length) { try { stored = JSON.parse(rows[0].value); } catch { stored = null; } }
+    res.json(mergeMemberCountries(stored));
   } catch (e) { next(e); }
 });
 

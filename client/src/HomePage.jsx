@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from './api.js';
 import { planValidityText } from './formConfig.js';
-import { MEMBER_COUNTRIES } from './data/memberCountries.js';
 
 const SECTIONS = ['home', 'about', 'membership', 'activities', 'contact'];
 
@@ -51,6 +50,7 @@ export default function HomePage() {
   const [scrolled, setScrolled] = useState(false);
   const [plans, setPlans] = useState([]);
   const [c, setC] = useState(null); // home content from settings table
+  const [countries, setCountries] = useState([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [slideIdx, setSlideIdx] = useState(0);
   const headerRef = useRef(null);
@@ -59,9 +59,10 @@ export default function HomePage() {
   useEffect(() => {
     (async () => {
       try {
-        const [cfg, content] = await Promise.all([api.formConfig(), api.homeContent()]);
+        const [cfg, content, memberCountries] = await Promise.all([api.formConfig(), api.homeContent(), api.memberCountries()]);
         setPlans(cfg.plans || []);
         setC(content);
+        setCountries((memberCountries.countries || []).filter((co) => co.visible));
       } catch {
         setC(null);
       }
@@ -72,6 +73,46 @@ export default function HomePage() {
     const t = setInterval(() => setSlideIdx((i) => (i + 1) % HERO_SLIDES.length), 6000);
     return () => clearInterval(t);
   }, []);
+
+  // Auto-scrolling country marquee: a rAF loop nudges scrollLeft forward and wraps
+  // seamlessly (the card list is duplicated), while still allowing native touch/drag
+  // scrolling and the arrow buttons — any interaction pauses it, then it resumes.
+  const marqueeRef = useRef(null);
+  const marqueePausedRef = useRef(false);
+  const marqueeResumeTimer = useRef(null);
+
+  useEffect(() => {
+    let raf;
+    const step = () => {
+      const el = marqueeRef.current;
+      if (el && !marqueePausedRef.current) {
+        el.scrollLeft += 0.6;
+        const half = el.scrollWidth / 2;
+        if (el.scrollLeft >= half) el.scrollLeft -= half;
+      }
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const pauseMarquee = () => {
+    marqueePausedRef.current = true;
+    clearTimeout(marqueeResumeTimer.current);
+  };
+  const resumeMarqueeSoon = (delay = 2200) => {
+    clearTimeout(marqueeResumeTimer.current);
+    marqueeResumeTimer.current = setTimeout(() => { marqueePausedRef.current = false; }, delay);
+  };
+  const nudgeMarquee = (dir) => {
+    const el = marqueeRef.current;
+    if (!el) return;
+    pauseMarquee();
+    const card = el.querySelector('.hp-country-card');
+    const step = card ? card.getBoundingClientRect().width + 22 : 220;
+    el.scrollBy({ left: dir * step * 2, behavior: 'smooth' });
+    resumeMarqueeSoon(3000);
+  };
 
   useEffect(() => {
     const onScroll = () => {
@@ -128,9 +169,7 @@ export default function HomePage() {
     '--hp-header-h': `${headerH}px`,
   };
 
-  const countryLoop = [...MEMBER_COUNTRIES, ...MEMBER_COUNTRIES];
-  const [heroSubhead, ...heroRest] = c.hero.tagline.split('\n\n');
-  const heroDesc = heroRest.join('\n\n');
+  const countryLoop = countries.length ? [...countries, ...countries] : [];
 
   return (
     <div className="hp" style={rootStyle}>
@@ -195,8 +234,8 @@ export default function HomePage() {
         )}
         <div className="hp-hero-glass">
           <h1>{c.hero.title1} <span className="pipe">|</span> {c.hero.title2}</h1>
-          <p className="hp-subhead">{heroSubhead}</p>
-          {heroDesc && <p className="hp-desc" style={{ whiteSpace: 'pre-line' }}>{heroDesc}</p>}
+          <p className="hp-subhead">{c.hero.tagline}</p>
+          {c.hero.description && <p className="hp-desc" style={{ whiteSpace: 'pre-line' }}>{c.hero.description}</p>}
           <div className="hp-cta-row">
             <Link className="hp-cta" to="/register">{c.hero.cta_primary} <span className="arr">→</span></Link>
             <button className="hp-cta outline" onClick={() => goTo('activities')}>
@@ -224,23 +263,40 @@ export default function HomePage() {
       </section>
 
       {/* ===== Member Countries marquee ===== */}
+      {countries.length > 0 && (
       <section className="hp-countries">
         <div className="hp-countries-inner">
           <span className="hp-kicker center">Our Global Family</span>
           <h2 className="center">Our Members Country</h2>
         </div>
-        <div className="hp-marquee-wrap">
-          <div className="hp-marquee-track">
-            {countryLoop.map((co, i) => (
-              <div className="hp-country-card" key={i}>
-                <img src={`https://flagcdn.com/w160/${co.code}.png`} alt={co.name} loading="lazy" />
-                <div className="cc-name">{co.name}</div>
-                <div className="cc-count">{co.members.toLocaleString('en-IN')}+<span>Members</span></div>
-              </div>
-            ))}
+        <div className="hp-marquee-outer">
+          <button className="hp-marquee-arrow prev" aria-label="Scroll left" onClick={() => nudgeMarquee(-1)}>‹</button>
+          <div
+            className="hp-marquee-wrap"
+            ref={marqueeRef}
+            onPointerEnter={(e) => { if (e.pointerType === 'mouse') pauseMarquee(); }}
+            onPointerLeave={(e) => {
+              if (e.pointerType !== 'mouse') return;
+              clearTimeout(marqueeResumeTimer.current);
+              marqueePausedRef.current = false;
+            }}
+            onPointerDown={pauseMarquee}
+            onPointerUp={(e) => { if (e.pointerType !== 'mouse') resumeMarqueeSoon(); }}
+          >
+            <div className="hp-marquee-track">
+              {countryLoop.map((co, i) => (
+                <div className="hp-country-card" key={i}>
+                  <img src={`https://flagcdn.com/w160/${co.code}.png`} alt={co.name} loading="lazy" />
+                  <div className="cc-name">{co.name}</div>
+                  {co.show_count && <div className="cc-count">{co.members.toLocaleString('en-IN')}+<span>Members</span></div>}
+                </div>
+              ))}
+            </div>
           </div>
+          <button className="hp-marquee-arrow next" aria-label="Scroll right" onClick={() => nudgeMarquee(1)}>›</button>
         </div>
       </section>
+      )}
 
       {/* ===== About ===== */}
       <section className="hp-section" id="about">

@@ -72,6 +72,8 @@ export const api = {
   // Settings
   homeContent: () => request('/api/home-content'),
   saveHomeContent: (content) => request('/api/admin/settings/home-content', { method: 'PUT', json: content }),
+  memberCountries: () => request('/api/member-countries'),
+  saveMemberCountries: (data) => request('/api/admin/settings/member-countries', { method: 'PUT', json: data }),
   getRegistration: () => request('/api/admin/settings/registration'),
   saveRegistration: (cfg) => request('/api/admin/settings/registration', { method: 'PUT', json: cfg }),
   getIdFormat: () => request('/api/admin/settings/membership-id'),

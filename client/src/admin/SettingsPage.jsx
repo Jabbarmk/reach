@@ -168,7 +168,8 @@ function HomeContentCard() {
               {txt('hero', 'title1', 'Headline — line 1')}
               {txt('hero', 'title2', 'Headline — line 2')}
             </div>
-            {txt('hero', 'tagline', 'Tagline (line breaks allowed)', 2)}
+            {txt('hero', 'tagline', 'Tagline')}
+            {txt('hero', 'description', 'Description (shown under the tagline, line breaks allowed)', 3)}
             <div className="grid2">
               {txt('hero', 'cta_primary', 'Main button text')}
               {txt('hero', 'cta_secondary', 'Secondary link text')}
@@ -233,6 +234,133 @@ function HomeContentCard() {
             </button>
             <a className="btn btn-outline btn-sm" href="/" target="_blank" rel="noreferrer">Preview home page ↗</a>
           </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function MemberCountriesCard() {
+  const [countries, setCountries] = useState(null);
+  const [draft, setDraft] = useState({ code: '', name: '', members: '' });
+  const [error, setError] = useState(null);
+  const [saved, setSaved] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try { setCountries((await api.memberCountries()).countries || []); }
+      catch (err) { setError(err.message); }
+    })();
+  }, []);
+
+  const update = (i, key, value) => {
+    setCountries((rows) => rows.map((r, idx) => (idx === i ? { ...r, [key]: value } : r)));
+    setSaved(false);
+  };
+  const remove = (i) => {
+    setCountries((rows) => rows.filter((_, idx) => idx !== i));
+    setSaved(false);
+  };
+  const addCountry = () => {
+    const code = draft.code.trim().toLowerCase().replace(/[^a-z]/g, '');
+    setError(null);
+    if (code.length !== 2) { setError('Country code must be exactly 2 letters (e.g. "ae" for UAE).'); return; }
+    if (!draft.name.trim()) { setError('Country name is required.'); return; }
+    setCountries((rows) => [...rows, {
+      code, name: draft.name.trim(), members: Number(draft.members) || 0, visible: true, show_count: true,
+    }]);
+    setDraft({ code: '', name: '', members: '' });
+    setSaved(false);
+  };
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try { setCountries((await api.saveMemberCountries({ countries })).countries || []); setSaved(true); }
+    catch (err) { setError(err.message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <h2 style={{ fontSize: 17, marginBottom: 4 }}>Member Countries (Home Page)</h2>
+      <p className="sub">Countries shown in the "Our Members Country" sliding marquee on the home page. Hide or show any country, hide or show its member count, or add a new one.</p>
+      {error && <div className="alert error">{error}</div>}
+      {saved && <div className="alert info">✓ Member countries saved and live.</div>}
+      {!countries ? <div className="empty-note"><span className="spinner lg" /></div> : (
+        <>
+          <div className="table-card" style={{ marginBottom: 16 }}>
+            <div className="table-scroll">
+              <table className="apps">
+                <thead>
+                  <tr>
+                    <th style={{ width: 56 }}>Flag</th>
+                    <th>Country</th>
+                    <th style={{ width: 130 }}>Members</th>
+                    <th style={{ width: 90 }}>Visible</th>
+                    <th style={{ width: 110 }}>Show Count</th>
+                    <th style={{ width: 50 }} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {countries.map((row, i) => (
+                    <tr key={i}>
+                      <td><img src={`https://flagcdn.com/w80/${row.code}.png`} alt={row.code} style={{ width: 34, height: 22, objectFit: 'cover', borderRadius: 3, border: '1px solid var(--line)' }} /></td>
+                      <td>
+                        <input type="text" value={row.name} onChange={(e) => update(i, 'name', e.target.value)} style={{ width: '100%', padding: '6px 9px', border: '1.5px solid var(--line)', borderRadius: 8 }} />
+                      </td>
+                      <td>
+                        <input type="number" min="0" value={row.members} onChange={(e) => update(i, 'members', Number(e.target.value) || 0)} style={{ width: '100%', padding: '6px 9px', border: '1.5px solid var(--line)', borderRadius: 8 }} />
+                      </td>
+                      <td>
+                        <button type="button" className={`switch ${row.visible ? 'on' : ''}`} onClick={() => update(i, 'visible', !row.visible)} aria-label="Toggle visible">
+                          <span className="knob" />
+                        </button>
+                      </td>
+                      <td>
+                        <button type="button" className={`switch ${row.show_count ? 'on' : ''}`} onClick={() => update(i, 'show_count', !row.show_count)} aria-label="Toggle show count">
+                          <span className="knob" />
+                        </button>
+                      </td>
+                      <td>
+                        <button className="icon-btn danger" title="Remove" onClick={() => remove(i)}>🗑</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {countries.length === 0 && <div className="empty-note">No countries yet — add one below.</div>}
+          </div>
+
+          <div className="hc-card-edit">
+            <div className="hc-card-title">Add a Country</div>
+            <div className="grid2">
+              <div className="field">
+                <label>ISO code (2 letters, e.g. "ae")</label>
+                <input type="text" maxLength={2} value={draft.code} onChange={(e) => setDraft({ ...draft, code: e.target.value })} />
+              </div>
+              <div className="field">
+                <label>Country name</label>
+                <input type="text" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+              </div>
+            </div>
+            <div className="field">
+              <label>Member count</label>
+              <input type="number" min="0" value={draft.members} onChange={(e) => setDraft({ ...draft, members: e.target.value })} style={{ maxWidth: 160 }} />
+            </div>
+            {draft.code.trim().length === 2 && (
+              <div className="hint" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                Flag preview: <img src={`https://flagcdn.com/w80/${draft.code.trim().toLowerCase()}.png`} alt="" style={{ width: 34, height: 22, objectFit: 'cover', borderRadius: 3, border: '1px solid var(--line)' }} />
+              </div>
+            )}
+            <button className="btn btn-outline btn-sm" onClick={addCountry}>+ Add Country</button>
+          </div>
+
+          <button className="btn btn-primary" onClick={save} disabled={busy} style={{ marginTop: 16 }}>
+            {busy ? 'Saving…' : 'Save Member Countries'}
+          </button>
         </>
       )}
     </div>
@@ -703,6 +831,7 @@ export default function SettingsPage() {
       <DeclarationsCard />
       <LogoCard />
       <HomeContentCard />
+      <MemberCountriesCard />
       <IdFormatCard />
       <ReferenceFormatCard />
       <RolesCard />

@@ -293,7 +293,7 @@ export default function AccountsPage() {
       </div>
 
       <div className="tab-row">
-        <button className={`tab ${tab === 'received' ? 'active' : ''}`} onClick={() => setTab('received')}>Payment Received</button>
+        <button className={`tab ${tab === 'received' ? 'active' : ''}`} onClick={() => setTab('received')}>Received</button>
         <button className={`tab ${tab === 'expense' ? 'active' : ''}`} onClick={() => setTab('expense')}>Payments</button>
         {isAdmin && <button className={`tab ${tab === 'categories' ? 'active' : ''}`} onClick={() => setTab('categories')}>Categories</button>}
         <button className={`tab ${tab === 'reports' ? 'active' : ''}`} onClick={() => setTab('reports')}>Reports</button>

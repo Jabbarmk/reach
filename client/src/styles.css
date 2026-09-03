@@ -33,6 +33,7 @@ body {
   color: var(--ink);
   font-size: 15px;
   line-height: 1.55;
+  overflow-wrap: break-word;
 }
 button { font-family: inherit; cursor: pointer; }
 input, select, textarea { font-family: inherit; font-size: 15px; }
@@ -126,8 +127,8 @@ img { max-width: 100%; }
     linear-gradient(180deg, rgba(3,10,5,.5) 0%, rgba(3,10,5,0) 30%, rgba(3,10,5,.4) 100%);
 }
 .hp-hero-glass {
-  position: relative; z-index: 2;
-  max-width: 960px; padding: 0 12px;
+  position: relative; z-index: 2; min-width: 0;
+  width: 100%; max-width: 960px; padding: 0 12px;
 }
 .hp-hero-watermark {
   position: absolute; z-index: 1; left: -10px; bottom: -10px; width: 190px; height: auto;
@@ -168,6 +169,10 @@ img { max-width: 100%; }
 @media (max-width: 640px) {
   .hp-hero { padding: 18px 18px 70px; padding-top: calc(var(--hp-header-h, 66px) + 36px); }
   .hp-hero-glass { padding: 0 4px; }
+  .hp-highlights { flex-direction: column; }
+  .hp-highlight-item { padding: 14px 16px; }
+  .hp-highlight-item + .hp-highlight-item::before { display: none; }
+  .hp-highlight-item + .hp-highlight-item { border-top: 1px solid rgba(255,255,255,.16); }
 }
 .hp-hero-glass h1 {
   font-family: var(--font);
@@ -180,9 +185,16 @@ img { max-width: 100%; }
 }
 .hp-subhead {
   font-family: var(--font); font-size: clamp(40px, 3.2vw, 32px); font-weight: 800;
-  color: #eafaf0; line-height: 1.45; margin-top: 20px;
+  color: #eafaf0; line-height: 1.45; margin-top: 20px; overflow-wrap: break-word;
 }
-.hp-desc { font-size: 15.5px; font-weight: 400; color: rgba(234,247,235,.82); line-height: 1.75; max-width: 500px; margin-top: 14px; }
+.hp-desc {
+  font-size: 16.5px; font-weight: 400; color: rgba(234,247,235,.85); line-height: 1.75;
+  max-width: 660px; margin-top: 14px; overflow-wrap: break-word;
+}
+@media (max-width: 640px) {
+  .hp-subhead { font-size: clamp(24px, 7.5vw, 32px); }
+  .hp-desc { font-size: 15px; }
+}
 .hp-cta-row { display: flex; align-items: center; gap: 18px; margin-top: 36px; flex-wrap: wrap; }
 .hp-cta {
   display: inline-flex; align-items: center; gap: 12px;
@@ -223,7 +235,7 @@ img { max-width: 100%; }
   color: var(--blue-900); margin-bottom: 14px;
 }
 .hp-lead { font-size: 16.5px; color: var(--muted); max-width: 680px; line-height: 1.65; margin-bottom: 34px; }
-.hp-cards3, .hp-contact { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
+.hp-cards3, .hp-contact { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 20px; }
 .hp-card {
   background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 26px;
   box-shadow: var(--shadow);
@@ -258,7 +270,7 @@ img { max-width: 100%; }
 .hp-membership .hp-membership-title { font-size: clamp(38px, 5.2vw, 56px); }
 @media (max-width: 640px) { .hp-membership-dots { display: none; } }
 
-.hp-plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 40px 34px; max-width: 780px; }
+.hp-plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(290px, 100%), 1fr)); gap: 40px 34px; max-width: 780px; }
 .hp-plan {
   position: relative; background: #fff; border-radius: 22px; text-align: center;
   box-shadow: 0 10px 30px rgba(13,42,107,.08);
@@ -304,16 +316,35 @@ img { max-width: 100%; }
 .hp-section h2.center, h2.center { text-align: center; }
 
 /* ============ Member countries marquee ============ */
-.hp-countries { padding: 70px 0 76px; background: #fff; overflow: hidden; }
+.hp-countries { padding: 70px 0 76px; background: #fff; color: var(--ink); overflow: hidden; }
 .hp-countries-inner { max-width: 1200px; margin: 0 auto 8px; padding: 0 42px; text-align: center; }
+.hp-countries-inner h2 {
+  font-family: 'Playfair Display', Georgia, serif; font-size: clamp(28px, 3.6vw, 38px);
+  color: var(--blue-900); margin-top: 4px;
+}
+.hp-marquee-outer { position: relative; margin-top: 34px; }
 .hp-marquee-wrap {
-  overflow: hidden; margin-top: 34px;
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: none; -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch; cursor: grab;
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
   mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
 }
-.hp-marquee-track { display: flex; gap: 22px; width: max-content; animation: hp-marquee 38s linear infinite; }
-.hp-marquee-wrap:hover .hp-marquee-track { animation-play-state: paused; }
-@keyframes hp-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.hp-marquee-wrap::-webkit-scrollbar { display: none; }
+.hp-marquee-wrap:active { cursor: grabbing; }
+.hp-marquee-track { display: flex; gap: 22px; width: max-content; padding: 0 4px; }
+.hp-marquee-arrow {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 2;
+  width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line);
+  background: #fff; color: var(--blue-800); font-size: 22px; line-height: 1;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  box-shadow: 0 6px 18px rgba(13,42,107,.16); transition: all .15s;
+}
+.hp-marquee-arrow:hover { background: var(--blue-50); border-color: var(--blue-600); transform: translateY(-50%) scale(1.06); }
+.hp-marquee-arrow.prev { left: 8px; }
+.hp-marquee-arrow.next { right: 8px; }
+@media (max-width: 640px) {
+  .hp-marquee-arrow { width: 34px; height: 34px; font-size: 18px; }
+}
 .hp-country-card {
   flex: 0 0 auto; width: 168px; background: #fff; border: 1px solid var(--line); border-radius: 16px;
   padding: 20px 16px; text-align: center; box-shadow: var(--shadow); transition: transform .15s, box-shadow .15s;
@@ -341,7 +372,7 @@ img { max-width: 100%; }
 }
 .hp-benefit-card h3 { font-size: 16.5px; color: var(--blue-900); margin-bottom: 8px; }
 .hp-benefit-card p { font-size: 14px; color: var(--muted); line-height: 1.65; }
-.hp-cards3.cols4 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.hp-cards3.cols4 { grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); }
 
 /* ============ Leadership quote ============ */
 .hp-quote-section {
