@@ -113,8 +113,14 @@ export default function HomePage() {
       {[['home', 'Home'], ['about', 'About'], ['activities', 'Focus Areas'], ['membership', 'Membership'], ['contact', 'Contact']].map(([id, label]) => (
         <button key={id} className={`hp-nav-link ${active === id ? 'active' : ''}`} onClick={() => goTo(id)}>{label}</button>
       ))}
-      <Link className="hp-nav-link admin" to="/admin">Admin</Link>
     </>
+  );
+
+  const NavActions = () => (
+    <div className="hp-nav-actions">
+      <button className="hp-nav-btn member" disabled title="Member login is coming soon">Member Login</button>
+      <Link className="hp-nav-btn admin" to="/admin">Admin Login</Link>
+    </div>
   );
 
   const rootStyle = {
@@ -141,10 +147,18 @@ export default function HomePage() {
         <span className="hp-logo-chip">
           <img src="/api/logo" alt={c.footer.name} onLoad={() => headerRef.current && setHeaderH(headerRef.current.offsetHeight)} />
         </span>
-        <nav className="hp-nav">{NavLinks()}</nav>
+        <div className="hp-nav-group">
+          <nav className="hp-nav">{NavLinks()}</nav>
+          <NavActions />
+        </div>
         <button className="hp-burger" onClick={() => setMenuOpen(!menuOpen)} aria-label="Menu">☰</button>
       </header>
-      {menuOpen && <div className="hp-mobile-menu">{NavLinks()}</div>}
+      {menuOpen && (
+        <div className="hp-mobile-menu">
+          {NavLinks()}
+          <NavActions />
+        </div>
+      )}
 
       <div className="hp-dots">
         {SECTIONS.map((id) => (
