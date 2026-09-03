@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { api } from '../api.js';
+import { COUNTRY_CODES } from '../data/countryCodes.js';
 
 function LogoCard() {
   const [preview, setPreview] = useState(null); // local object URL before upload
@@ -240,9 +241,68 @@ function HomeContentCard() {
   );
 }
 
+function MemberCountrySearch({ picked, onPick, excludeCodes }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    const onDocClick = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, []);
+
+  const q = query.trim().toLowerCase();
+  const filtered = (q ? COUNTRY_CODES.filter((c) => c.name.toLowerCase().includes(q)) : COUNTRY_CODES)
+    .filter((c) => !excludeCodes.includes(c.code))
+    .slice(0, 30);
+
+  const pick = (c) => {
+    onPick(c);
+    setQuery('');
+    setOpen(false);
+  };
+
+  return (
+    <div className="field" ref={wrapRef}>
+      <label>Country name</label>
+      <div className="ss-wrap">
+        <input
+          type="text"
+          placeholder="Start typing a country name…"
+          value={open ? query : (picked?.name || '')}
+          onFocus={() => { setOpen(true); setQuery(''); }}
+          onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && filtered.length === 1) { e.preventDefault(); pick(filtered[0]); }
+            if (e.key === 'Escape') setOpen(false);
+          }}
+        />
+        <span className="ss-caret">▾</span>
+        {open && (
+          <div className="ss-menu">
+            {filtered.length === 0 && <div className="ss-empty">No match found</div>}
+            {filtered.map((c) => (
+              <button
+                type="button" key={c.code}
+                className={`ss-option ${picked?.code === c.code ? 'selected' : ''}`}
+                style={{ display: 'flex', alignItems: 'center', gap: 9 }}
+                onMouseDown={(e) => { e.preventDefault(); pick(c); }}
+              >
+                <img src={`https://flagcdn.com/w40/${c.code}.png`} alt="" style={{ width: 20, height: 14, objectFit: 'cover', borderRadius: 2, flexShrink: 0 }} />
+                {c.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function MemberCountriesCard() {
   const [countries, setCountries] = useState(null);
-  const [draft, setDraft] = useState({ code: '', name: '', members: '' });
+  const [draft, setDraft] = useState({ picked: null, members: '' });
   const [error, setError] = useState(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -263,14 +323,13 @@ function MemberCountriesCard() {
     setSaved(false);
   };
   const addCountry = () => {
-    const code = draft.code.trim().toLowerCase().replace(/[^a-z]/g, '');
     setError(null);
-    if (code.length !== 2) { setError('Country code must be exactly 2 letters (e.g. "ae" for UAE).'); return; }
-    if (!draft.name.trim()) { setError('Country name is required.'); return; }
+    if (!draft.picked) { setError('Search for and select a country first.'); return; }
+    if (countries.some((c) => c.code === draft.picked.code)) { setError('That country is already in the list.'); return; }
     setCountries((rows) => [...rows, {
-      code, name: draft.name.trim(), members: Number(draft.members) || 0, visible: true, show_count: true,
+      code: draft.picked.code, name: draft.picked.name, members: Number(draft.members) || 0, visible: true, show_count: true,
     }]);
-    setDraft({ code: '', name: '', members: '' });
+    setDraft({ picked: null, members: '' });
     setSaved(false);
   };
 
@@ -282,6 +341,12 @@ function MemberCountriesCard() {
     finally { setBusy(false); }
   };
 
+  const allShowCount = countries?.length > 0 && countries.every((c) => c.show_count);
+  const toggleAllShowCount = () => {
+    setCountries((rows) => rows.map((r) => ({ ...r, show_count: !allShowCount })));
+    setSaved(false);
+  };
+
   return (
     <div className="card" style={{ marginBottom: 20 }}>
       <h2 style={{ fontSize: 17, marginBottom: 4 }}>Member Countries (Home Page)</h2>
@@ -290,6 +355,17 @@ function MemberCountriesCard() {
       {saved && <div className="alert info">✓ Member countries saved and live.</div>}
       {!countries ? <div className="empty-note"><span className="spinner lg" /></div> : (
         <>
+          {countries.length > 0 && (
+            <div className="reg-toggle-row" style={{ marginBottom: 16 }}>
+              <button type="button" className={`switch ${allShowCount ? 'on' : ''}`} onClick={toggleAllShowCount} aria-label="Toggle member counts for all countries">
+                <span className="knob" />
+              </button>
+              <div>
+                <strong>Show member counts for all countries</strong>
+                <div className="hint" style={{ marginTop: 2 }}>Quickly switch every country's "Show Count" at once, instead of one row at a time.</div>
+              </div>
+            </div>
+          )}
           <div className="table-card" style={{ marginBottom: 16 }}>
             <div className="table-scroll">
               <table className="apps">
@@ -337,22 +413,19 @@ function MemberCountriesCard() {
           <div className="hc-card-edit">
             <div className="hc-card-title">Add a Country</div>
             <div className="grid2">
+              <MemberCountrySearch
+                picked={draft.picked}
+                onPick={(c) => setDraft({ ...draft, picked: c })}
+                excludeCodes={countries.map((c) => c.code)}
+              />
               <div className="field">
-                <label>ISO code (2 letters, e.g. "ae")</label>
-                <input type="text" maxLength={2} value={draft.code} onChange={(e) => setDraft({ ...draft, code: e.target.value })} />
-              </div>
-              <div className="field">
-                <label>Country name</label>
-                <input type="text" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+                <label>Member count</label>
+                <input type="number" min="0" value={draft.members} onChange={(e) => setDraft({ ...draft, members: e.target.value })} />
               </div>
             </div>
-            <div className="field">
-              <label>Member count</label>
-              <input type="number" min="0" value={draft.members} onChange={(e) => setDraft({ ...draft, members: e.target.value })} style={{ maxWidth: 160 }} />
-            </div>
-            {draft.code.trim().length === 2 && (
+            {draft.picked && (
               <div className="hint" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                Flag preview: <img src={`https://flagcdn.com/w80/${draft.code.trim().toLowerCase()}.png`} alt="" style={{ width: 34, height: 22, objectFit: 'cover', borderRadius: 3, border: '1px solid var(--line)' }} />
+                Flag: <img src={`https://flagcdn.com/w80/${draft.picked.code}.png`} alt="" style={{ width: 34, height: 22, objectFit: 'cover', borderRadius: 3, border: '1px solid var(--line)' }} />
               </div>
             )}
             <button className="btn btn-outline btn-sm" onClick={addCountry}>+ Add Country</button>

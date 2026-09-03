@@ -27,8 +27,13 @@ export default function Confirmation({ result, data }) {
       </div>
 
       <div className="alert info">
-        Please keep your reference number safe. Our team will verify your application and documents;
-        you will be contacted about payment and membership confirmation.
+        <strong>പ്രത്യേക ശ്രദ്ധയ്ക്ക്</strong>
+        <p style={{ marginTop: 6 }}>
+          മുകളിൽ സൂചിപ്പിച്ച അപേക്ഷാ റഫറൻസ് നമ്പർ ദയവായി സൂക്ഷിച്ചുവെക്കുമല്ലോ. സമർപ്പിച്ച വിവരങ്ങളും രേഖകളും
+          മെമ്പർഷിപ്പ് ടീം പരിശോധിച്ച ശേഷം, ഫീസ് അടയ്ക്കുന്നതിനും അംഗത്വം ഉറപ്പാക്കുന്നതിനുമായി ഉടൻ തന്നെ
+          ബന്ധപ്പെടുന്നതായിരിക്കും.
+        </p>
+        <p style={{ marginTop: 8 }}>കൂടെയുണ്ടാവുമെന്ന പ്രതീക്ഷയോടെ!</p>
       </div>
 
       <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }} className="no-print">

@@ -266,8 +266,7 @@ export default function HomePage() {
       {countries.length > 0 && (
       <section className="hp-countries">
         <div className="hp-countries-inner">
-          <span className="hp-kicker center">Our Global Family</span>
-          <h2 className="center">Our Members Country</h2>
+          <h2 className="center">Our Global Family</h2>
         </div>
         <div className="hp-marquee-outer">
           <button className="hp-marquee-arrow prev" aria-label="Scroll left" onClick={() => nudgeMarquee(-1)}>‹</button>
