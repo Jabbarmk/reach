@@ -196,11 +196,12 @@ function HomeContentCard() {
           </details>
 
           <details className="hc-section">
-            <summary>Activities section</summary>
+            <summary>Focus Areas section</summary>
             <div className="grid2">
               {txt('activities', 'kicker', 'Small label')}
               {txt('activities', 'title', 'Title')}
             </div>
+            {txt('activities', 'lead', 'Intro paragraph', 2)}
             {cards('activities')}
           </details>
 

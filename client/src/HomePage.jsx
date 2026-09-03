@@ -2,8 +2,49 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from './api.js';
 import { planValidityText } from './formConfig.js';
+import { MEMBER_COUNTRIES } from './data/memberCountries.js';
 
 const SECTIONS = ['home', 'about', 'membership', 'activities', 'contact'];
+
+// `builtin: true` slides already ship with their own dark panel + watermark baked in,
+// so the page-level overlay gradient and SVG watermark are suppressed while they're active.
+const HERO_SLIDES = [
+  { src: '/bgwayanad/bg1.png', builtin: true },
+  { src: '/bgwayanad/bg2.png' },
+  { src: '/bgwayanad/bg3.jpg' },
+  { src: '/bgwayanad/bg4.jpg' },
+];
+
+// Matched by index to c.about.cards: Pravasi Protection & Welfare, Economic Empowerment, Social Unity.
+const ABOUT_IMAGES = ['/bgwayanad/abt1.jpg', '/bgwayanad/abt2.jpg', '/bgwayanad/abt3.jpg'];
+
+const HIGHLIGHTS = [
+  { icon: '✅', text: '100% Transparent Governance' },
+  { icon: '🛟', text: 'Pravasi Welfare & Relief Fund' },
+  { icon: '💪', text: 'Strong Ex-Pravasi Community' },
+];
+
+const BENEFITS = [
+  { icon: '🆘', title: 'Emergency Relief Fund', text: 'ജോലി നഷ്ടപ്പെടുകയോ, ഗുരുതരമായ പ്രതിസന്ധികൾ നേരിടുകയോ ചെയ്യുമ്പോൾ മുൻഗണനാ അടിസ്ഥാനത്തിലുള്ള പിന്തുണ.' },
+  { icon: '🌱', title: 'Rehabilitation Assistance', text: 'നാട്ടിൽ തിരിച്ചെത്തുന്നവർക്ക് സ്വയംതൊഴിൽ/സംരംഭകത്വ വഴികാട്ടലുകൾ.' },
+  { icon: '🗳️', title: 'Democratic Rights', text: 'പഞ്ചായത്ത്/മുൻസിപ്പൽ സമിതികൾ മുതൽ സെൻട്രൽ കമ്മിറ്റി വരെ ജനാധിപത്യപരമായ പ്രാതിനിധ്യവും വോട്ടവകാശവും.' },
+];
+
+const NEWS = [
+  { tag: 'Announcement', title: 'By-Law & Official Logo Unveiled', text: 'REACH Pravasi Welfare Society ബൈലോയും ലോഗോയും ഔദ്യോഗികമായി പ്രകാശനം ചെയ്തു.' },
+  { tag: 'Membership Drive', title: 'Membership Drive 2026', text: 'മെമ്പര്‍ഷിപ്പ് കാമ്പയിന്‍ 2026 സെപ്റ്റംബര്‍ 5 മുതല്‍ 20 വരെ (ഓണ്‍ലൈനില്‍ മാത്രം)' },
+  { tag: 'Committees', title: 'Regional Committees Formation', text: 'പഞ്ചായത്ത്/മുൻസിപ്പൽ സമിതികളുടെ രൂപീകരണം ഉടന്‍.' },
+];
+
+const FOOTER_LINKS = [
+  { label: 'Home', id: 'home' },
+  { label: 'About By-Law', disabled: true },
+  { label: 'Executive Committee', disabled: true },
+  { label: 'Focus Areas', id: 'activities' },
+  { label: 'Membership', id: 'membership' },
+  { label: 'Gallery', disabled: true },
+  { label: 'Contact Us', id: 'contact' },
+];
 
 export default function HomePage() {
   const [active, setActive] = useState('home');
@@ -11,6 +52,7 @@ export default function HomePage() {
   const [plans, setPlans] = useState([]);
   const [c, setC] = useState(null); // home content from settings table
   const [menuOpen, setMenuOpen] = useState(false);
+  const [slideIdx, setSlideIdx] = useState(0);
   const headerRef = useRef(null);
   const [headerH, setHeaderH] = useState(110);
 
@@ -24,6 +66,11 @@ export default function HomePage() {
         setC(null);
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    const t = setInterval(() => setSlideIdx((i) => (i + 1) % HERO_SLIDES.length), 6000);
+    return () => clearInterval(t);
   }, []);
 
   useEffect(() => {
@@ -63,7 +110,7 @@ export default function HomePage() {
 
   const NavLinks = () => (
     <>
-      {[['home', 'Home'], ['about', 'About'], ['membership', 'Membership'], ['activities', 'Activities'], ['contact', 'Contact']].map(([id, label]) => (
+      {[['home', 'Home'], ['about', 'About'], ['activities', 'Focus Areas'], ['membership', 'Membership'], ['contact', 'Contact']].map(([id, label]) => (
         <button key={id} className={`hp-nav-link ${active === id ? 'active' : ''}`} onClick={() => goTo(id)}>{label}</button>
       ))}
       <Link className="hp-nav-link admin" to="/admin">Admin</Link>
@@ -75,9 +122,22 @@ export default function HomePage() {
     '--hp-header-h': `${headerH}px`,
   };
 
+  const countryLoop = [...MEMBER_COUNTRIES, ...MEMBER_COUNTRIES];
+  const [heroSubhead, ...heroRest] = c.hero.tagline.split('\n\n');
+  const heroDesc = heroRest.join('\n\n');
+
   return (
     <div className="hp" style={rootStyle}>
-      <header className={`hp-header ${scrolled ? 'scrolled' : ''}`} ref={headerRef}>
+      <header
+        className={`hp-header ${scrolled ? 'scrolled' : ''}`}
+        ref={headerRef}
+        onMouseMove={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          e.currentTarget.style.setProperty('--mx', `${e.clientX - r.left}px`);
+          e.currentTarget.style.setProperty('--my', `${e.clientY - r.top}px`);
+        }}
+      >
+        <span className="hp-header-spotlight" aria-hidden="true" />
         <span className="hp-logo-chip">
           <img src="/api/logo" alt={c.footer.name} onLoad={() => headerRef.current && setHeaderH(headerRef.current.offsetHeight)} />
         </span>
@@ -96,18 +156,52 @@ export default function HomePage() {
         ))}
       </div>
 
-      {/* ===== Hero ===== */}
+      {/* ===== Hero (slider) ===== */}
       <section className="hp-hero" id="home">
+        <div className="hp-hero-slides">
+          {HERO_SLIDES.map((slide, i) => (
+            <div
+              key={i}
+              className={`hp-hero-slide ${i === slideIdx ? 'active' : ''}`}
+              style={{ backgroundImage: `url(${slide.src})` }}
+            />
+          ))}
+        </div>
+        {!HERO_SLIDES[slideIdx].builtin && (
+          <>
+            <div className="hp-hero-overlay" />
+            <svg className="hp-hero-watermark" viewBox="0 0 200 180" aria-hidden="true">
+              <path d="M60 130 C30 108 12 86 12 62 C12 42 27 28 45 28 C55 28 63 33 70 42 C77 33 85 28 95 28 C113 28 128 42 128 62 C128 86 110 108 80 130 L70 137Z" />
+              <circle cx="150" cy="55" r="13" />
+              <path d="M126 108 C126 88 137 76 150 76 C163 76 174 88 174 108" />
+              <circle cx="112" cy="70" r="10" />
+              <path d="M92 112 C92 96 101 86 112 86 C123 86 132 96 132 112" />
+            </svg>
+          </>
+        )}
         <div className="hp-hero-glass">
-          <h1>{c.hero.title1}<br />{c.hero.title2}</h1>
-          <div className="hp-divider"><span className="line" /><span className="dot" /><span className="line long" /></div>
-          <p className="hp-tag" style={{ whiteSpace: 'pre-line' }}>{c.hero.tagline}</p>
+          <h1>{c.hero.title1} <span className="pipe">|</span> {c.hero.title2}</h1>
+          <p className="hp-subhead">{heroSubhead}</p>
+          {heroDesc && <p className="hp-desc" style={{ whiteSpace: 'pre-line' }}>{heroDesc}</p>}
           <div className="hp-cta-row">
             <Link className="hp-cta" to="/register">{c.hero.cta_primary} <span className="arr">→</span></Link>
-            <button className="hp-link-cta" onClick={() => goTo('about')}>
-              {c.hero.cta_secondary} <span className="arr green">→</span>
+            <button className="hp-cta outline" onClick={() => goTo('activities')}>
+              {c.hero.cta_secondary} <span className="arr">→</span>
             </button>
           </div>
+          <div className="hp-highlights">
+            {HIGHLIGHTS.map((h, i) => (
+              <div className="hp-highlight-item" key={i}>
+                <span className="hp-highlight-ico">{h.icon}</span>
+                <span className="hp-highlight-text">{h.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="hp-hero-dots">
+          {HERO_SLIDES.map((_, i) => (
+            <button key={i} className={i === slideIdx ? 'on' : ''} aria-label={`Slide ${i + 1}`} onClick={() => setSlideIdx(i)} />
+          ))}
         </div>
         <button className="hp-scroll-hint" onClick={() => goTo('about')} aria-label="Scroll down">
           <span className="mouse"><span className="wheel" /></span>
@@ -115,54 +209,146 @@ export default function HomePage() {
         </button>
       </section>
 
+      {/* ===== Member Countries marquee ===== */}
+      <section className="hp-countries">
+        <div className="hp-countries-inner">
+          <span className="hp-kicker center">Our Global Family</span>
+          <h2 className="center">Our Members Country</h2>
+        </div>
+        <div className="hp-marquee-wrap">
+          <div className="hp-marquee-track">
+            {countryLoop.map((co, i) => (
+              <div className="hp-country-card" key={i}>
+                <img src={`https://flagcdn.com/w160/${co.code}.png`} alt={co.name} loading="lazy" />
+                <div className="cc-name">{co.name}</div>
+                <div className="cc-count">{co.members.toLocaleString('en-IN')}+<span>Members</span></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ===== About ===== */}
       <section className="hp-section" id="about">
         <div className="hp-section-inner">
           <span className="hp-kicker">{c.about.kicker}</span>
           <h2>{c.about.title}</h2>
-          <p className="hp-lead">{c.about.lead}</p>
+          <p className="hp-lead" style={{ whiteSpace: 'pre-line' }}>{c.about.lead}</p>
           <div className="hp-cards3">
             {c.about.cards.map((card, i) => (
-              <div className="hp-card" key={i}>
-                <div className="ico">{card.icon}</div>
-                <h3>{card.title}</h3>
-                <p>{card.text}</p>
+              <div className="hp-about-card" key={i}>
+                <div className="hp-about-card-img">
+                  <img src={ABOUT_IMAGES[i]} alt={card.title} loading="lazy" />
+                </div>
+                <div className="hp-about-card-body">
+                  <h3>{card.title}</h3>
+                  <p>{card.text}</p>
+                </div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ===== Membership ===== */}
-      <section className="hp-section alt" id="membership">
-        <div className="hp-section-inner">
-          <span className="hp-kicker">{c.membership.kicker}</span>
-          <h2>{c.membership.title}</h2>
-          <p className="hp-lead">{c.membership.lead}</p>
-          <div className="hp-plans">
-            {plans.map((p) => (
-              <div className="hp-plan" key={p.code}>
-                <h3>{p.name}</h3>
-                <div className="fee">₹{Number(p.fee).toLocaleString('en-IN')}</div>
-                <p>{planValidityText(p)}</p>
-                <Link className="hp-cta sm" to="/register">Register Now <span className="arr">→</span></Link>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ===== Activities ===== */}
-      <section className="hp-section" id="activities">
+      {/* ===== Focus Areas ===== */}
+      <section className="hp-section alt" id="activities">
         <div className="hp-section-inner">
           <span className="hp-kicker">{c.activities.kicker}</span>
           <h2>{c.activities.title}</h2>
-          <div className="hp-cards3">
+          {c.activities.lead && <p className="hp-lead">{c.activities.lead}</p>}
+          <div className="hp-cards3 cols4">
             {c.activities.cards.map((card, i) => (
               <div className="hp-card" key={i}>
                 <div className="ico">{card.icon}</div>
                 <h3>{card.title}</h3>
                 <p>{card.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ===== Membership plans ===== */}
+      <section className="hp-section hp-membership" id="membership">
+        <span className="hp-membership-blob a" aria-hidden="true" />
+        <span className="hp-membership-blob b" aria-hidden="true" />
+        <span className="hp-membership-dots" aria-hidden="true" />
+        <div className="hp-section-inner">
+          <span className="hp-kicker">{c.membership.kicker}</span>
+          <h2 className="hp-membership-title">{c.membership.title}</h2>
+          <p className="hp-lead">{c.membership.lead}</p>
+          <div className="hp-plans">
+            {plans.map((p) => {
+              const featured = p.code === 'lifetime';
+              return (
+                <div className={`hp-plan ${featured ? 'featured' : ''}`} key={p.code}>
+                  {featured && <span className="hp-plan-badge">👑 Best Value</span>}
+                  <div className="hp-plan-header">
+                    <span className="hp-plan-icon">{featured ? '♾️' : '📅'}</span>
+                  </div>
+                  <div className="hp-plan-body">
+                    <h3>{p.name}</h3>
+                    <span className="hp-plan-divider" />
+                    <div className="fee">₹{Number(p.fee).toLocaleString('en-IN')}</div>
+                    <p>{planValidityText(p)}</p>
+                    <Link className={`hp-cta sm ${featured ? 'dark' : ''}`} to="/register">Register Now <span className="arr">→</span></Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ===== Why join REACH (membership benefits) ===== */}
+      <section className="hp-section alt">
+        <div className="hp-section-inner">
+          <span className="hp-kicker">Membership Benefits</span>
+          <h2>Why Join REACH?</h2>
+          <div className="hp-cards3">
+            {BENEFITS.map((b, i) => (
+              <div className="hp-benefit-card" key={i}>
+                <div className="ico">{b.icon}</div>
+                <h3>{b.title}</h3>
+                <p>{b.text}</p>
+              </div>
+            ))}
+          </div>
+          <Link className="hp-cta" to="/register" style={{ marginTop: 34 }}>
+            Apply for Membership <span className="arr">→</span>
+          </Link>
+        </div>
+      </section>
+
+      {/* ===== Leadership message ===== */}
+      <section className="hp-quote-section">
+        <div className="hp-quote-card">
+          <span className="hp-kicker light">From the Leadership</span>
+          <div className="hp-quote-divider"><span className="dot" /><span className="dot" /><span className="dot" /></div>
+          <span className="hp-quote-mark" aria-hidden="true">"</span>
+          <p className="hp-quote-text">
+            "പ്രവാസികളുടെ കൂട്ടായ ശക്തിയെ നാടിന്റെ നന്മയ്ക്കായും, അവരുടെ കുടുംബങ്ങളുടെ സുരക്ഷിതത്വത്തിനായും
+            മാറ്റിയെടുക്കുക എന്നതാണ് REACH-ന്റെ ലക്ഷ്യം. ഒരു പ്രവാസിയും ഒറ്റപ്പെടരുത് എന്ന ഉറച്ച ബോധ്യത്തോടെയാണ്
+            നമ്മൾ മുന്നോട്ട് പോകുന്നത്."
+          </p>
+          <span className="hp-quote-rule" />
+          <div className="hp-quote-attr">— Central Executive Committee, REACH Pravasi Welfare Society</div>
+        </div>
+      </section>
+
+      {/* ===== News & Announcements ===== */}
+      <section className="hp-section">
+        <div className="hp-section-inner">
+          <span className="hp-kicker">Latest Updates</span>
+          <h2>News & Announcements</h2>
+          <div className="hp-news-list">
+            {NEWS.map((n, i) => (
+              <div className="hp-news-item" key={i}>
+                <span className="hp-news-tag">{n.tag}</span>
+                <div>
+                  <h3>{n.title}</h3>
+                  <p>{n.text}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -193,11 +379,37 @@ export default function HomePage() {
         </div>
       </section>
 
-      <footer className="hp-footer">
-        <span>© {new Date().getFullYear()} {c.footer.name}</span>
-        <span className="links">
-          <Link to="/register">Membership Registration</Link> · <Link to="/admin">Admin Login</Link>
-        </span>
+      <footer className="hp-footer2">
+        <div className="hp-footer2-grid">
+          <div>
+            <span className="hp-logo-chip footer">
+              <img src="/api/logo" alt={c.footer.name} />
+            </span>
+            <p className="hp-footer2-about">{c.footer.name} — standing with Sulthan Bathery's expatriates and returnees, together.</p>
+          </div>
+          <div>
+            <h4>Quick Links</h4>
+            <div className="hp-footer2-links">
+              {FOOTER_LINKS.map((l, i) => (
+                l.disabled
+                  ? <span className="disabled" key={i} title="Coming soon">{l.label}</span>
+                  : <button key={i} onClick={() => goTo(l.id)}>{l.label}</button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <h4>Contact Info</h4>
+            <p className="contact-line">📍 {c.contact.office}</p>
+            <p className="contact-line">✉️ <a href={`mailto:${c.contact.email}`}>{c.contact.email}</a></p>
+            {c.contact.phone && <p className="contact-line">📞 <a href={`tel:${c.contact.phone.replace(/\s/g, '')}`}>{c.contact.phone}</a></p>}
+          </div>
+        </div>
+        <div className="hp-footer2-bottom">
+          <span>Reg No: — · © {new Date().getFullYear()} {c.footer.name}. All Rights Reserved.</span>
+          <span className="links">
+            <Link to="/register">Membership Registration</Link> · <Link to="/admin">Admin Login</Link>
+          </span>
+        </div>
       </footer>
     </div>
   );
