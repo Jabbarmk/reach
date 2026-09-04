@@ -8,6 +8,7 @@ import { sendMail, templates } from '../mailer.js';
 import { mergeHomeContent } from '../homeContent.js';
 import { mergeMemberCountries } from '../memberCountries.js';
 import { getLogoPath } from '../branding.js';
+import { NEWS_DIR } from './news.js';
 
 const router = express.Router();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -63,6 +64,54 @@ router.get('/member-countries', async (req, res, next) => {
     let stored = null;
     if (rows.length) { try { stored = JSON.parse(rows[0].value); } catch { stored = null; } }
     res.json(mergeMemberCountries(stored));
+  } catch (e) { next(e); }
+});
+
+// Public: News & Announcements / Events list (published items only).
+router.get('/news', async (req, res, next) => {
+  try {
+    const limitNum = Number(req.query.limit);
+    let sql = 'SELECT id, kind, tag, title, body, image_file, published_on FROM news_items WHERE is_published = 1 ORDER BY published_on DESC, id DESC';
+    if (Number.isFinite(limitNum) && limitNum > 0) {
+      sql += ` LIMIT ${Math.min(Math.floor(limitNum), 100)}`;
+    }
+    const [rows] = await pool.query(sql);
+    if (!rows.length) return res.json(rows);
+    const [images] = await pool.query(
+      'SELECT id, news_item_id FROM news_item_images WHERE news_item_id IN (?) ORDER BY sort_order, id',
+      [rows.map((r) => r.id)]
+    );
+    const byItem = new Map();
+    for (const img of images) {
+      if (!byItem.has(img.news_item_id)) byItem.set(img.news_item_id, []);
+      byItem.get(img.news_item_id).push({ id: img.id });
+    }
+    res.json(rows.map((r) => ({ ...r, images: byItem.get(r.id) || [] })));
+  } catch (e) { next(e); }
+});
+
+router.get('/news/:id/image', async (req, res, next) => {
+  try {
+    const [rows] = await pool.query('SELECT image_file, image_mime FROM news_items WHERE id = ? AND is_published = 1', [req.params.id]);
+    if (!rows.length || !rows[0].image_file) return res.status(404).end();
+    res.setHeader('Content-Type', rows[0].image_mime || 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.sendFile(path.join(NEWS_DIR, path.basename(rows[0].image_file)));
+  } catch (e) { next(e); }
+});
+
+router.get('/news/:id/gallery/:imageId', async (req, res, next) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT gi.image_file, gi.image_mime FROM news_item_images gi
+       JOIN news_items ni ON ni.id = gi.news_item_id
+       WHERE gi.id = ? AND gi.news_item_id = ? AND ni.is_published = 1`,
+      [req.params.imageId, req.params.id]
+    );
+    if (!rows.length) return res.status(404).end();
+    res.setHeader('Content-Type', rows[0].image_mime || 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.sendFile(path.join(NEWS_DIR, path.basename(rows[0].image_file)));
   } catch (e) { next(e); }
 });
 

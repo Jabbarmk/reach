@@ -224,7 +224,7 @@ export function MembersPage() {
   const ctl = useApps('All', tab === 'deleted' ? { deleted: '1' } : {});
   const [editId, setEditId] = useState(null);
   const [actionError, setActionError] = useState(null);
-  const [view, setView] = usePersisted('reach_members_view', 'table');
+  const [view, setView] = usePersisted('reach_members_view', 'grid');
   const [cardSize, setCardSize] = usePersisted('reach_members_card_size', 'default');
   const [photoUrls, setPhotoUrls] = useState({});
 
@@ -356,10 +356,10 @@ export function MembersPage() {
 }
 
 export function ApprovalsPage() {
-  const ctl = useApps(['Payment Verified', 'Pending Verification', 'Submitted', 'Correction Requested']);
+  const ctl = useApps('Payment Verified');
   return (
     <>
-      <PageHead title="Approvals" sub="Applications with payment verified and ready for approval, plus anything still awaiting payment." />
+      <PageHead title="Approvals" sub="Applications with payment verified and ready for approval." />
       {ctl.error && <div className="alert error">{ctl.error}</div>}
       <Toolbar ctl={ctl} />
       <AppsTable rows={ctl.rows} emptyText="Nothing pending — all applications have been processed. 🎉" />
@@ -539,16 +539,89 @@ function ReceivedPaymentsTab({ isAdmin }) {
   );
 }
 
+// "Payment due" combines three distinct reasons a member needs financial follow-up:
+// a brand-new application awaiting its first payment, an active two-year member
+// approaching/past their 2-year renewal mark (computed from their approval date —
+// independent of the plan's own shared validity_start/end), or a member whose recorded
+// payment fell short of the plan fee. A single member can carry more than one reason.
+function PaymentDueTab({ rows, error, onRecord, onEditPayment }) {
+  const navigate = useNavigate();
+
+  return (
+    <>
+      {error && <div className="alert error">{error}</div>}
+      <div className="table-card">
+        <div className="table-scroll">
+          <table className="apps">
+            <thead>
+              <tr>
+                <th>Member</th><th>Place</th><th>Plan</th><th>Reason</th><th>Details</th>
+                <th style={{ width: 150 }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows?.map((r) => (
+                <tr key={r.id} onClick={() => navigate(`/admin/applications/${r.id}`)}>
+                  <td style={{ fontWeight: 600 }}>
+                    {r.name}<br />
+                    <span style={{ fontWeight: 700, color: 'var(--blue-800)', fontSize: 12.5 }}>{r.membership_id || r.reference_no}</span>
+                  </td>
+                  <td>{r.place}</td>
+                  <td>{r.membership_type === 'lifetime' ? 'Lifetime ₹2,000' : 'Two-Year ₹300'}</td>
+                  <td>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                      {r.is_new_application && <span className="pill orange">New Application</span>}
+                      {r.is_renewal_due && <span className="pill blue">Renewal Due</span>}
+                      {r.is_balance_due && <span className="pill red">Balance Due</span>}
+                    </div>
+                  </td>
+                  <td style={{ fontSize: 13 }}>
+                    {r.is_new_application && <div>Awaiting first payment</div>}
+                    {r.is_renewal_due && (
+                      <div>
+                        2-year term {new Date(r.renewal_due_on) <= new Date() ? 'ended' : 'ends'} {new Date(r.renewal_due_on).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </div>
+                    )}
+                    {r.is_balance_due && (
+                      <div>₹{Number(r.balance_amount).toLocaleString('en-IN')} short (paid ₹{Number(r.paid_amount).toLocaleString('en-IN')} of ₹{Number(r.membership_fee).toLocaleString('en-IN')})</div>
+                    )}
+                  </td>
+                  <td onClick={(e) => e.stopPropagation()} style={{ cursor: 'default' }}>
+                    {r.is_new_application && <button className="btn btn-teal btn-sm" onClick={() => onRecord(r)}>₹ Record</button>}
+                    {!r.is_new_application && r.is_balance_due && <button className="btn btn-outline btn-sm" onClick={() => onEditPayment(r)}>✎ Update Payment</button>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {rows?.length === 0 && <div className="empty-note">No payments due — everyone's up to date. 🎉</div>}
+        {!rows && !error && <div className="empty-note"><span className="spinner lg" /></div>}
+      </div>
+    </>
+  );
+}
+
 export function PaymentsPage() {
   const { session, refreshStats } = useOutletContext();
+  const navigate = useNavigate();
   const isAdmin = session?.role === 'admin';
   const [tab, setTab] = useState('received');
-  const ctl = useApps(['Pending Verification', 'Submitted']);
+  const [dueRows, setDueRows] = useState(null);
+  const [dueError, setDueError] = useState(null);
   const [recordFor, setRecordFor] = useState(null);
+  const [editPaymentFor, setEditPaymentFor] = useState(null);
 
-  const dueActions = (r) => (
-    <button className="btn btn-teal btn-sm" onClick={() => setRecordFor(r)}>₹ Record</button>
-  );
+  const loadDue = async () => {
+    setDueError(null);
+    try { setDueRows(await api.paymentsDue()); }
+    catch (err) {
+      if (err.status === 401) { setToken(null); navigate('/admin/login'); return; }
+      setDueError(err.message);
+    }
+  };
+
+  useEffect(() => { loadDue(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
@@ -558,11 +631,7 @@ export function PaymentsPage() {
         <button className={`tab ${tab === 'received' ? 'active' : ''}`} onClick={() => setTab('received')}>Received</button>
       </div>
       {tab === 'due' ? (
-        <>
-          {ctl.error && <div className="alert error">{ctl.error}</div>}
-          <Toolbar ctl={ctl} />
-          <AppsTable rows={ctl.rows} emptyText="No payments due." renderActions={dueActions} />
-        </>
+        <PaymentDueTab rows={dueRows} error={dueError} onRecord={setRecordFor} onEditPayment={setEditPaymentFor} />
       ) : (
         <ReceivedPaymentsTab isAdmin={isAdmin} />
       )}
@@ -571,26 +640,27 @@ export function PaymentsPage() {
           mode="record"
           app={recordFor}
           onClose={() => setRecordFor(null)}
-          onDone={() => { setRecordFor(null); ctl.load(); refreshStats?.(); }}
+          onDone={() => { setRecordFor(null); loadDue(); refreshStats?.(); }}
+        />
+      )}
+      {editPaymentFor && (
+        <PaymentModal
+          mode="edit"
+          app={{
+            id: editPaymentFor.id, name: editPaymentFor.name, membership_id: editPaymentFor.membership_id,
+            membership_type: editPaymentFor.membership_type, membership_fee: editPaymentFor.membership_fee,
+          }}
+          payment={{
+            id: editPaymentFor.payment_id, amount: editPaymentFor.paid_amount, method: editPaymentFor.method,
+            paid_on: editPaymentFor.paid_on, note: editPaymentFor.note, collected_by: editPaymentFor.collected_by,
+            receipt_doc_id: editPaymentFor.receipt_doc_id,
+          }}
+          onClose={() => setEditPaymentFor(null)}
+          onDone={() => { setEditPaymentFor(null); loadDue(); refreshStats?.(); }}
         />
       )}
     </>
   );
 }
 
-export function EventsPage() {
-  return (
-    <>
-      <PageHead title="Events" sub="Community events and programmes." />
-      <div className="card" style={{ textAlign: 'center', padding: 48 }}>
-        <div style={{ fontSize: 40, marginBottom: 10 }}>📅</div>
-        <h2 style={{ fontSize: 18 }}>Events module coming soon</h2>
-        <p className="sub" style={{ marginBottom: 0 }}>
-          This section is reserved for society events and announcements. It is not part of the current
-          membership registration phase.
-        </p>
-      </div>
-    </>
-  );
-}
 

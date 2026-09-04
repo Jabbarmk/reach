@@ -10,6 +10,7 @@ import userRoutes from './routes/users.js';
 import settingsRoutes from './routes/settings.js';
 import formAdminRoutes from './routes/formadmin.js';
 import ledgerRoutes from './routes/ledger.js';
+import newsRoutes from './routes/news.js';
 import { loadRoles } from './middleware/auth.js';
 
 dotenv.config();
@@ -27,6 +28,7 @@ app.use('/api/admin/users', userRoutes);
 app.use('/api/admin/settings', settingsRoutes);
 app.use('/api/admin/form', formAdminRoutes);
 app.use('/api/admin/ledger', ledgerRoutes);
+app.use('/api/admin/news', newsRoutes);
 app.use('/api/admin', adminRoutes);
 
 app.use((err, req, res, next) => {

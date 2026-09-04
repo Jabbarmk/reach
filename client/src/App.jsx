@@ -5,7 +5,9 @@ import AdminLogin from './admin/AdminLogin.jsx';
 import AdminLayout, { ScreenGuard } from './admin/AdminLayout.jsx';
 import Overview from './admin/Overview.jsx';
 import ApplicationDetail from './admin/ApplicationDetail.jsx';
-import { MembersPage, ApprovalsPage, PaymentsPage, EventsPage } from './admin/ListPages.jsx';
+import { MembersPage, ApprovalsPage, PaymentsPage } from './admin/ListPages.jsx';
+import NewsPage from './admin/NewsPage.jsx';
+import NewsListPage from './NewsListPage.jsx';
 import ReceiptsPage from './admin/ReceiptsPage.jsx';
 import AccountsPage from './admin/AccountsPage.jsx';
 import UsersPage from './admin/UsersPage.jsx';
@@ -35,6 +37,7 @@ export default function App() {
       <PublicHeader />
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/news" element={<NewsListPage />} />
         <Route path="/register" element={<RegistrationWizard />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin" element={<AdminLayout />}>
@@ -56,7 +59,7 @@ export default function App() {
             <Route path="accounts" element={<AccountsPage />} />
           </Route>
           <Route element={<ScreenGuard screen="events" />}>
-            <Route path="events" element={<EventsPage />} />
+            <Route path="news" element={<NewsPage />} />
           </Route>
           <Route element={<ScreenGuard screen="form" />}>
             <Route path="form-builder" element={<FormBuilder />} />

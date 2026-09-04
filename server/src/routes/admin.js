@@ -280,6 +280,45 @@ async function removeReceiptDoc(conn, docId) {
   }
 }
 
+// Unified "Payment due" list: new applications awaiting their first payment, active
+// two-year members approaching/past their 2-year renewal mark (computed from their
+// 'Approved' status_history entry — see project decision: this is independent of the
+// plan's own fixed validity_start/end, which stays a shared term for all two-year members),
+// and any member whose recorded payment is less than their plan fee (short/partial payment).
+const RENEWAL_LOOKAHEAD_DAYS = 30;
+router.get('/payments/due', requireScreen('payments'), async (req, res, next) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT
+         a.id, a.reference_no, a.membership_id, a.name, a.place, a.whatsapp_number,
+         a.membership_type, a.membership_fee, a.status, a.payment_status, a.created_at,
+         p.id AS payment_id, p.amount AS paid_amount, p.method, p.paid_on, p.note, p.collected_by, p.receipt_doc_id,
+         appr.approved_on,
+         DATE_ADD(appr.approved_on, INTERVAL 2 YEAR) AS renewal_due_on,
+         GREATEST(a.membership_fee - COALESCE(p.amount, 0), 0) AS balance_amount,
+         (a.status IN ('Pending Verification', 'Submitted')) AS is_new_application,
+         (a.membership_type = 'two_year' AND a.status = 'Active' AND appr.approved_on IS NOT NULL
+           AND DATE_ADD(appr.approved_on, INTERVAL 2 YEAR) <= DATE_ADD(CURDATE(), INTERVAL ${RENEWAL_LOOKAHEAD_DAYS} DAY)) AS is_renewal_due,
+         (p.amount IS NOT NULL AND p.amount < a.membership_fee) AS is_balance_due
+       FROM applications a
+       LEFT JOIN payments p ON p.application_id = a.id
+       LEFT JOIN (
+         SELECT application_id, MAX(created_at) AS approved_on FROM status_history WHERE action = 'Approved' GROUP BY application_id
+       ) appr ON appr.application_id = a.id
+       WHERE a.deleted_at IS NULL
+       HAVING is_new_application = 1 OR is_renewal_due = 1 OR is_balance_due = 1
+       ORDER BY is_new_application DESC, is_renewal_due DESC, is_balance_due DESC, a.created_at DESC
+       LIMIT 500`
+    );
+    res.json(rows.map((r) => ({
+      ...r,
+      is_new_application: !!r.is_new_application,
+      is_renewal_due: !!r.is_renewal_due,
+      is_balance_due: !!r.is_balance_due,
+    })));
+  } catch (e) { next(e); }
+});
+
 router.get('/payments', requireScreen('payments'), async (req, res, next) => {
   try {
     const { search, method, collected_by, recorded_by } = req.query;

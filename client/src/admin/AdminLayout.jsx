@@ -6,7 +6,7 @@ const NAV = [
   { to: '/admin', label: 'Overview', icon: '▦', end: true, screen: 'overview' },
   { to: '/admin/members', label: 'Members', icon: '👥', screen: 'members' },
   { to: '/admin/approvals', label: 'Approvals', icon: '☑', badge: 'pending', screen: 'approvals' },
-  { to: '/admin/events', label: 'Events', icon: '📅', screen: 'events' },
+  { to: '/admin/news', label: 'News & Events', icon: '📰', screen: 'events' },
   { to: '/admin/payments', label: 'Payments', icon: '₹', screen: 'payments' },
   { to: '/admin/receipts', label: 'Receipts', icon: '🧾', screen: 'payments' },
   { to: '/admin/accounts', label: 'Accounts', icon: '📒', screen: 'ledger' },

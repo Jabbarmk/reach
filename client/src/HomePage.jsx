@@ -17,10 +17,34 @@ const HERO_SLIDES = [
 // Matched by index to c.about.cards: Pravasi Protection & Welfare, Economic Empowerment, Social Unity.
 const ABOUT_IMAGES = ['/bgwayanad/abt1.jpg', '/bgwayanad/abt2.jpg', '/bgwayanad/abt3.jpg'];
 
+const iconProps = { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' };
+
+const ShieldCheckIcon = () => (
+  <svg {...iconProps} width="21" height="21">
+    <path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6l7-3z" />
+    <path d="M9 12l2 2 4-4" />
+  </svg>
+);
+const LifebuoyIcon = () => (
+  <svg {...iconProps} width="21" height="21">
+    <circle cx="12" cy="12" r="9" />
+    <circle cx="12" cy="12" r="4" />
+    <path d="M5.5 5.5l3 3M18.5 5.5l-3 3M5.5 18.5l3-3M18.5 18.5l-3-3" />
+  </svg>
+);
+const CommunityIcon = () => (
+  <svg {...iconProps} width="21" height="21">
+    <circle cx="9" cy="8" r="3" />
+    <path d="M3 20c0-3 2.7-5 6-5s6 2 6 5" />
+    <circle cx="17" cy="9" r="2.3" />
+    <path d="M15.5 12c2.2.4 3.5 1.8 3.5 4" />
+  </svg>
+);
+
 const HIGHLIGHTS = [
-  { icon: '✅', text: '100% Transparent Governance' },
-  { icon: '🛟', text: 'Pravasi Welfare & Relief Fund' },
-  { icon: '💪', text: 'Strong Ex-Pravasi Community' },
+  { icon: <ShieldCheckIcon />, text: '100% Transparent Governance' },
+  { icon: <LifebuoyIcon />, text: 'Pravasi Welfare & Relief Fund' },
+  { icon: <CommunityIcon />, text: 'Strong Ex-Pravasi Community' },
 ];
 
 const BENEFITS = [
@@ -29,11 +53,6 @@ const BENEFITS = [
   { icon: '🗳️', title: 'Democratic Rights', text: 'പഞ്ചായത്ത്/മുൻസിപ്പൽ സമിതികൾ മുതൽ സെൻട്രൽ കമ്മിറ്റി വരെ ജനാധിപത്യപരമായ പ്രാതിനിധ്യവും വോട്ടവകാശവും.' },
 ];
 
-const NEWS = [
-  { tag: 'Announcement', title: 'By-Law & Official Logo Unveiled', text: 'REACH Pravasi Welfare Society ബൈലോയും ലോഗോയും ഔദ്യോഗികമായി പ്രകാശനം ചെയ്തു.' },
-  { tag: 'Membership Drive', title: 'Membership Drive 2026', text: 'മെമ്പര്‍ഷിപ്പ് കാമ്പയിന്‍ 2026 സെപ്റ്റംബര്‍ 5 മുതല്‍ 20 വരെ (ഓണ്‍ലൈനില്‍ മാത്രം)' },
-  { tag: 'Committees', title: 'Regional Committees Formation', text: 'പഞ്ചായത്ത്/മുൻസിപ്പൽ സമിതികളുടെ രൂപീകരണം ഉടന്‍.' },
-];
 
 const FOOTER_LINKS = [
   { label: 'Home', id: 'home' },
@@ -51,6 +70,7 @@ export default function HomePage() {
   const [plans, setPlans] = useState([]);
   const [c, setC] = useState(null); // home content from settings table
   const [countries, setCountries] = useState([]);
+  const [news, setNews] = useState([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [slideIdx, setSlideIdx] = useState(0);
   const headerRef = useRef(null);
@@ -58,14 +78,16 @@ export default function HomePage() {
 
   useEffect(() => {
     (async () => {
-      try {
-        const [cfg, content, memberCountries] = await Promise.all([api.formConfig(), api.homeContent(), api.memberCountries()]);
-        setPlans(cfg.plans || []);
-        setC(content);
-        setCountries((memberCountries.countries || []).filter((co) => co.visible));
-      } catch {
-        setC(null);
-      }
+      // Home content is the only thing the page truly can't render without — fetch it on its
+      // own so a failure in an unrelated endpoint (countries, news, plans) can't blank the
+      // whole homepage the way Promise.all's all-or-nothing rejection used to.
+      try { setC(await api.homeContent()); } catch { setC(null); return; }
+      const [cfg, memberCountries, newsItems] = await Promise.allSettled([
+        api.formConfig(), api.memberCountries(), api.news(5),
+      ]);
+      if (cfg.status === 'fulfilled') setPlans(cfg.value.plans || []);
+      if (memberCountries.status === 'fulfilled') setCountries((memberCountries.value.countries || []).filter((co) => co.visible));
+      if (newsItems.status === 'fulfilled') setNews(newsItems.value || []);
     })();
   }, []);
 
@@ -154,6 +176,7 @@ export default function HomePage() {
       {[['home', 'Home'], ['about', 'About'], ['activities', 'Focus Areas'], ['membership', 'Membership'], ['contact', 'Contact']].map(([id, label]) => (
         <button key={id} className={`hp-nav-link ${active === id ? 'active' : ''}`} onClick={() => goTo(id)}>{label}</button>
       ))}
+      <Link className="hp-nav-link" to="/news" onClick={() => setMenuOpen(false)}>News & Events</Link>
     </>
   );
 
@@ -188,7 +211,6 @@ export default function HomePage() {
         </span>
         <div className="hp-nav-group">
           <nav className="hp-nav">{NavLinks()}</nav>
-          <NavActions />
         </div>
         <button className="hp-burger" onClick={() => setMenuOpen(!menuOpen)} aria-label="Menu">☰</button>
       </header>
@@ -198,6 +220,9 @@ export default function HomePage() {
           <NavActions />
         </div>
       )}
+      <div className={`hp-corner-actions ${scrolled ? 'scrolled' : ''}`}>
+        <NavActions />
+      </div>
 
       <div className="hp-dots">
         {SECTIONS.map((id) => (
@@ -406,23 +431,30 @@ export default function HomePage() {
       </section>
 
       {/* ===== News & Announcements ===== */}
-      <section className="hp-section">
+      {news.length > 0 && (
+      <section className="hp-section" id="news">
         <div className="hp-section-inner">
           <span className="hp-kicker">Latest Updates</span>
           <h2>News & Announcements</h2>
           <div className="hp-news-list">
-            {NEWS.map((n, i) => (
-              <div className="hp-news-item" key={i}>
+            {news.map((n) => (
+              <div className="hp-news-item" key={n.id}>
+                {n.image_file && <img className="hp-news-img" src={api.newsImageUrl(n.id)} alt="" loading="lazy" />}
                 <span className="hp-news-tag">{n.tag}</span>
                 <div>
                   <h3>{n.title}</h3>
-                  <p>{n.text}</p>
+                  <p>{n.body}</p>
+                  <span className="hp-news-date">{new Date(n.published_on).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                 </div>
               </div>
             ))}
           </div>
+          <Link className="hp-cta" to="/news" style={{ marginTop: 28 }}>
+            View All News &amp; Events <span className="arr">→</span>
+          </Link>
         </div>
       </section>
+      )}
 
       {/* ===== Contact ===== */}
       <section className="hp-section alt" id="contact">

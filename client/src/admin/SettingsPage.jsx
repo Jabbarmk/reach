@@ -736,7 +736,7 @@ function ReferenceFormatCard() {
 
 const SCREEN_LABELS = {
   overview: 'Overview', members: 'Members', approvals: 'Approvals', payments: 'Payments',
-  events: 'Events', settings: 'Settings', users: 'Users', form: 'Form Builder', ledger: 'Accounts',
+  events: 'News & Events', settings: 'Settings', users: 'Users', form: 'Form Builder', ledger: 'Accounts',
 };
 const ALL_SCREENS = Object.keys(SCREEN_LABELS);
 

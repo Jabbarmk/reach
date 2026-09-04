@@ -41,6 +41,7 @@ export const api = {
   purgeApplication: (id) => request(`/api/admin/applications/${id}/purge`, { method: 'DELETE' }),
   updateApplication: (id, data) => request(`/api/admin/applications/${id}`, { method: 'PUT', json: data }),
   // Payments
+  paymentsDue: () => request('/api/admin/payments/due'),
   listPayments: (params = {}) => request(`/api/admin/payments?${new URLSearchParams(params)}`),
   createPayment: (formData) => request('/api/admin/payments', { method: 'POST', body: formData }),
   updatePayment: (id, formData) => request(`/api/admin/payments/${id}`, { method: 'PUT', body: formData }),
@@ -74,6 +75,14 @@ export const api = {
   saveHomeContent: (content) => request('/api/admin/settings/home-content', { method: 'PUT', json: content }),
   memberCountries: () => request('/api/member-countries'),
   saveMemberCountries: (data) => request('/api/admin/settings/member-countries', { method: 'PUT', json: data }),
+  // News & Events
+  news: (limit) => request(`/api/news${limit ? `?limit=${limit}` : ''}`),
+  newsImageUrl: (id) => `/api/news/${id}/image`,
+  newsGalleryImageUrl: (id, imageId) => `/api/news/${id}/gallery/${imageId}`,
+  listAdminNews: () => request('/api/admin/news'),
+  createNews: (formData) => request('/api/admin/news', { method: 'POST', body: formData }),
+  updateNews: (id, formData) => request(`/api/admin/news/${id}`, { method: 'PUT', body: formData }),
+  deleteNews: (id) => request(`/api/admin/news/${id}`, { method: 'DELETE' }),
   getRegistration: () => request('/api/admin/settings/registration'),
   saveRegistration: (cfg) => request('/api/admin/settings/registration', { method: 'PUT', json: cfg }),
   getIdFormat: () => request('/api/admin/settings/membership-id'),
