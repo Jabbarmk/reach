@@ -195,6 +195,11 @@ img { max-width: 100%; }
   .hp-highlight-item { flex: 0 1 auto; padding: 12px 16px; }
   .hp-highlight-item + .hp-highlight-item::before { display: none; }
   .hp-highlight-item + .hp-highlight-item { border-top: 1px solid rgba(255,255,255,.16); }
+  /* The stacked highlights list is much taller than the desktop single row, so the
+     slide-indicator dots (bottom-anchored at a fixed offset) end up landing on top of
+     it and of the scroll hint below. Drop the dots on mobile — the scroll hint alone
+     is enough of an affordance there. */
+  .hp-hero-dots { display: none; }
 }
 .hp-hero-glass h1 {
   font-family: var(--font);
