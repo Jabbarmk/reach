@@ -156,6 +156,15 @@ export default function HomePage() {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // Lets other pages (e.g. the News & Events nav) deep-link to a section via /#about etc.
+  useEffect(() => {
+    if (!c) return;
+    const hash = window.location.hash?.slice(1);
+    if (hash && SECTIONS.includes(hash)) {
+      requestAnimationFrame(() => setTimeout(() => goTo(hash), 50));
+    }
+  }, [c]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Keep the hero's top spacing in sync with the header's actual rendered height,
   // since the logo size (and therefore header height) is admin-editable.
   useEffect(() => {
@@ -508,7 +517,8 @@ export default function HomePage() {
         <div className="hp-footer2-bottom">
           <span>Reg No: — · © {new Date().getFullYear()} {c.footer.name}. All Rights Reserved.</span>
           <span className="links">
-            <Link to="/register">Membership Registration</Link> · <Link to="/admin">Admin Login</Link>
+            <Link to="/register">Membership Registration</Link> · <Link to="/admin">Admin Login</Link> ·{' '}
+            Powered by <a href="https://www.smartflix.ae" target="_blank" rel="noopener noreferrer">Smartflix.ae</a>
           </span>
         </div>
       </footer>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from './api.js';
 
@@ -28,17 +28,66 @@ function Lightbox({ images, index, onClose, onNav }) {
   );
 }
 
+const NAV_ITEMS = [
+  { to: '/', label: 'Home' },
+  { to: '/#about', label: 'About' },
+  { to: '/#activities', label: 'Focus Areas' },
+  { to: '/#membership', label: 'Membership' },
+  { to: '/#contact', label: 'Contact' },
+];
+
 export default function NewsListPage() {
   const [items, setItems] = useState(null);
   const [tab, setTab] = useState('news');
   const [lightbox, setLightbox] = useState(null); // { images: [], index } | null
+  const [logoSize, setLogoSize] = useState(115);
+  const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const headerRef = useRef(null);
+  const [headerH, setHeaderH] = useState(110);
 
   useEffect(() => {
     (async () => {
       try { setItems(await api.news()); }
       catch { setItems([]); }
     })();
+    (async () => {
+      try { setLogoSize((await api.homeContent())?.header?.logo_size || 115); }
+      catch { /* keep default */ }
+    })();
   }, []);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 40);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    if (!headerRef.current) return;
+    const measure = () => setHeaderH(headerRef.current.offsetHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(headerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  const NavLinks = () => (
+    <>
+      {NAV_ITEMS.map((item) => (
+        <Link key={item.to} className="hp-nav-link" to={item.to} onClick={() => setMenuOpen(false)}>{item.label}</Link>
+      ))}
+      <Link className="hp-nav-link active" to="/news" onClick={() => setMenuOpen(false)}>News &amp; Events</Link>
+    </>
+  );
+
+  const NavActions = () => (
+    <div className="hp-nav-actions">
+      <button className="hp-nav-btn member" disabled title="Member login is coming soon">Member Login</button>
+      <Link className="hp-nav-btn admin" to="/admin">Admin Login</Link>
+    </div>
+  );
 
   const news = (items || []).filter((n) => n.kind !== 'event');
   const events = (items || []).filter((n) => n.kind === 'event');
@@ -60,18 +109,34 @@ export default function NewsListPage() {
   };
 
   return (
-    <div className="newsx-page">
-      <header className="hp-header static">
+    <div className="newsx-page" style={{ '--hp-logo-size': `${logoSize}px`, '--hp-header-h': `${headerH}px` }}>
+      <header
+        className={`hp-header ${scrolled ? 'scrolled' : ''}`}
+        ref={headerRef}
+        onMouseMove={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          e.currentTarget.style.setProperty('--mx', `${e.clientX - r.left}px`);
+          e.currentTarget.style.setProperty('--my', `${e.clientY - r.top}px`);
+        }}
+      >
+        <span className="hp-header-spotlight" aria-hidden="true" />
         <span className="hp-logo-chip">
           <Link to="/"><img src="/api/logo" alt="REACH Pravasi Welfare Society" /></Link>
         </span>
         <div className="hp-nav-group">
-          <nav className="hp-nav">
-            <Link className="hp-nav-link" to="/">Home</Link>
-            <Link className="hp-nav-link active" to="/news">News &amp; Events</Link>
-          </nav>
+          <nav className="hp-nav">{NavLinks()}</nav>
         </div>
+        <button className="hp-burger" onClick={() => setMenuOpen(!menuOpen)} aria-label="Menu">☰</button>
       </header>
+      {menuOpen && (
+        <div className="hp-mobile-menu">
+          {NavLinks()}
+          <NavActions />
+        </div>
+      )}
+      <div className="hp-corner-actions scrolled">
+        <NavActions />
+      </div>
 
       <main className="newsx-main">
         <div className="newsx-hero">
@@ -141,7 +206,10 @@ export default function NewsListPage() {
 
       <footer className="newsx-footer">
         <Link to="/">← Back to Home</Link>
-        <span>© {new Date().getFullYear()} REACH Pravasi Welfare Society</span>
+        <span>
+          © {new Date().getFullYear()} REACH Pravasi Welfare Society · Powered by{' '}
+          <a href="https://www.smartflix.ae" target="_blank" rel="noopener noreferrer">Smartflix.ae</a>
+        </span>
       </footer>
 
       {lightbox && (

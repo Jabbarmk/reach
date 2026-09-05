@@ -163,20 +163,15 @@ router.delete('/entries/:id', async (req, res, next) => {
 /* ===== Reports ===== */
 router.get('/reports/summary', async (req, res, next) => {
   try {
-    const now = new Date();
-    const defaultFrom = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-    const defaultTo = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
-    const from = req.query.from || defaultFrom;
-    const to = req.query.to || defaultTo;
-
-    const [rangeRows] = await pool.query(
-      `SELECT kind, category_name, SUM(amount) AS total, COUNT(*) AS count
-       FROM ledger_entries
-       WHERE deleted_at IS NULL AND entry_date BETWEEN ? AND ?
-       GROUP BY kind, category_name
-       ORDER BY total DESC`,
-      [from, to]
-    );
+    // No date filter means "all data" — only constrain by whichever bound was actually given.
+    const { from, to } = req.query;
+    let rangeSql = `SELECT kind, category_name, SUM(amount) AS total, COUNT(*) AS count
+       FROM ledger_entries WHERE deleted_at IS NULL`;
+    const rangeParams = [];
+    if (from) { rangeSql += ' AND entry_date >= ?'; rangeParams.push(from); }
+    if (to) { rangeSql += ' AND entry_date <= ?'; rangeParams.push(to); }
+    rangeSql += ' GROUP BY kind, category_name ORDER BY total DESC';
+    const [rangeRows] = await pool.query(rangeSql, rangeParams);
     const [allTimeRows] = await pool.query(
       `SELECT kind, SUM(amount) AS total FROM ledger_entries WHERE deleted_at IS NULL GROUP BY kind`
     );

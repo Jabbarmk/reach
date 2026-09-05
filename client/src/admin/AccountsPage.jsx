@@ -197,40 +197,33 @@ function LedgerCategoriesTab() {
   );
 }
 
+// Reports opens showing every entry ever recorded (no date filter) — a date range is
+// something the admin opts into afterward, not a default that hides data on first load.
 function LedgerReportsTab() {
-  const today = new Date();
-  const defaultFrom = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
-  const defaultTo = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
-  const [from, setFrom] = useState(defaultFrom);
-  const [to, setTo] = useState(defaultTo);
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
   const [summary, setSummary] = useState(null);
+  const [entries, setEntries] = useState(null);
   const [error, setError] = useState(null);
+  const filtered = !!(from || to);
 
-  const load = async () => {
+  // Accepts explicit from/to so "Clear filter" can reload with the reset values immediately,
+  // instead of racing the setFrom/setTo state updates (which wouldn't be visible yet to a
+  // load() call relying on the current closure's from/to).
+  const load = async (f = from, t = to) => {
     setError(null);
-    try { setSummary(await api.ledgerSummary({ from, to })); } catch (err) { setError(err.message); }
+    try {
+      const [s, e] = await Promise.all([
+        api.ledgerSummary({ from: f, to: t }),
+        api.listLedgerEntries({ from: f, to: t }),
+      ]);
+      setSummary(s);
+      setEntries(e);
+    } catch (err) { setError(err.message); }
   };
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const CategoryTable = ({ title, rows }) => (
-    <div className="table-card" style={{ marginBottom: 16 }}>
-      <div className="table-scroll">
-        <table className="apps">
-          <thead><tr><th>{title}</th><th>Entries</th><th>Total</th></tr></thead>
-          <tbody>
-            {rows?.map((r) => (
-              <tr key={r.category_name}>
-                <td>{r.category_name}</td>
-                <td>{r.count}</td>
-                <td style={{ fontWeight: 700 }}>{money(r.total)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {rows && rows.length === 0 && <div className="empty-note">No entries in this range.</div>}
-    </div>
-  );
+  const clear = () => { setFrom(''); setTo(''); load('', ''); };
 
   return (
     <>
@@ -238,39 +231,61 @@ function LedgerReportsTab() {
       <div className="toolbar" style={{ flexWrap: 'wrap' }}>
         <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} title="From date" />
         <input type="date" value={to} onChange={(e) => setTo(e.target.value)} title="To date" />
-        <button className="btn btn-primary btn-sm" onClick={load}>Update</button>
+        <button className="btn btn-primary btn-sm" onClick={() => load()}>Update</button>
+        {filtered && <button className="btn btn-ghost btn-sm" onClick={clear}>Clear filter — show all</button>}
       </div>
 
-      {!summary ? (
+      {!summary || !entries ? (
         <div className="empty-note"><span className="spinner lg" /></div>
       ) : (
         <>
           <div className="ovr-grid">
             <div className="ovr-card">
-              <div className="ovr-top"><span className="ovr-ico green">✅</span></div>
-              <div className="ovr-label">Total Received (range)</div>
-              <div className="ovr-num">{money(summary.totals.received)}</div>
+              <div className="ovr-label">Total Received{filtered ? ' (filtered)' : ''}</div>
+              <div className="ovr-num" style={{ color: 'var(--green-600)' }}>{money(summary.totals.received)}</div>
             </div>
             <div className="ovr-card">
-              <div className="ovr-top"><span className="ovr-ico red">⛔</span></div>
-              <div className="ovr-label">Total Payments/Expenses (range)</div>
-              <div className="ovr-num">{money(summary.totals.expense)}</div>
+              <div className="ovr-label">Total Payments{filtered ? ' (filtered)' : ''}</div>
+              <div className="ovr-num" style={{ color: 'var(--red-600)' }}>{money(summary.totals.expense)}</div>
             </div>
             <div className="ovr-card">
-              <div className="ovr-top"><span className="ovr-ico teal">₹</span></div>
-              <div className="ovr-label">Net (range)</div>
-              <div className="ovr-num">{money(summary.totals.net)}</div>
+              <div className="ovr-label">Net{filtered ? ' (filtered)' : ''}</div>
+              <div className="ovr-num" style={{ color: summary.totals.net >= 0 ? 'var(--green-600)' : 'var(--red-600)' }}>{money(summary.totals.net)}</div>
             </div>
             <div className="ovr-card">
-              <div className="ovr-top"><span className="ovr-ico orange">📒</span></div>
               <div className="ovr-label">All-Time Balance</div>
-              <div className="ovr-num">{money(summary.allTime.balance)}</div>
+              <div className="ovr-num" style={{ color: summary.allTime.balance >= 0 ? 'var(--green-600)' : 'var(--red-600)' }}>{money(summary.allTime.balance)}</div>
             </div>
           </div>
 
-          <div className="grid2">
-            <CategoryTable title="Received by category" rows={summary.byCategory.received} />
-            <CategoryTable title="Payments/Expenses by category" rows={summary.byCategory.expense} />
+          <div className="table-card">
+            <div className="table-scroll">
+              <table className="apps statement">
+                <thead>
+                  <tr><th>Date</th><th>Type</th><th>Category</th><th>Note</th><th>Method</th><th>Recorded By</th><th style={{ textAlign: 'right' }}>Amount</th></tr>
+                </thead>
+                <tbody>
+                  {entries.map((r) => (
+                    <tr key={`${r.kind}-${r.id}`}>
+                      <td>{new Date(r.entry_date).toLocaleDateString('en-IN')}</td>
+                      <td>
+                        <span className={`pill ${r.kind === 'received' ? 'green' : 'red'}`}>
+                          {r.kind === 'received' ? 'Received' : 'Payment'}
+                        </span>
+                      </td>
+                      <td>{r.category_name}</td>
+                      <td>{r.note || '—'}</td>
+                      <td>{r.method || '—'}</td>
+                      <td>{r.recorded_by}</td>
+                      <td className={r.kind === 'received' ? 'stmt-credit' : 'stmt-debit'}>
+                        {r.kind === 'received' ? '+ ' : '− '}{money(r.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {entries.length === 0 && <div className="empty-note">No entries{filtered ? ' in this range' : ' yet'}.</div>}
           </div>
         </>
       )}
@@ -281,7 +296,7 @@ function LedgerReportsTab() {
 export default function AccountsPage() {
   const { session } = useOutletContext();
   const isAdmin = session?.role === 'admin';
-  const [tab, setTab] = useState('received');
+  const [tab, setTab] = useState('reports');
 
   return (
     <>
@@ -293,16 +308,16 @@ export default function AccountsPage() {
       </div>
 
       <div className="tab-row">
+        <button className={`tab ${tab === 'reports' ? 'active' : ''}`} onClick={() => setTab('reports')}>Reports</button>
         <button className={`tab ${tab === 'received' ? 'active' : ''}`} onClick={() => setTab('received')}>Received</button>
         <button className={`tab ${tab === 'expense' ? 'active' : ''}`} onClick={() => setTab('expense')}>Payments</button>
         {isAdmin && <button className={`tab ${tab === 'categories' ? 'active' : ''}`} onClick={() => setTab('categories')}>Categories</button>}
-        <button className={`tab ${tab === 'reports' ? 'active' : ''}`} onClick={() => setTab('reports')}>Reports</button>
       </div>
 
+      {tab === 'reports' && <LedgerReportsTab />}
       {tab === 'received' && <LedgerEntriesTab kind="received" isAdmin={isAdmin} />}
       {tab === 'expense' && <LedgerEntriesTab kind="expense" isAdmin={isAdmin} />}
       {tab === 'categories' && isAdmin && <LedgerCategoriesTab />}
-      {tab === 'reports' && <LedgerReportsTab />}
     </>
   );
 }
