@@ -355,11 +355,13 @@ export function MembersPage() {
   );
 }
 
+const APPROVALS_STATUSES = ['Pending Verification', 'Submitted', 'Correction Requested', 'Payment Verified'];
+
 export function ApprovalsPage() {
-  const ctl = useApps('Payment Verified');
+  const ctl = useApps(APPROVALS_STATUSES);
   return (
     <>
-      <PageHead title="Approvals" sub="Applications with payment verified and ready for approval." />
+      <PageHead title="Approvals" sub="Applications still awaiting payment verification or admin approval." />
       {ctl.error && <div className="alert error">{ctl.error}</div>}
       <Toolbar ctl={ctl} />
       <AppsTable rows={ctl.rows} emptyText="Nothing pending — all applications have been processed. 🎉" />
