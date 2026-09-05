@@ -14,6 +14,14 @@ const HERO_SLIDES = [
   { src: '/bgwayanad/bg4.jpg' },
 ];
 
+// Portrait crops of the same theme, swapped in on small screens so the hero doesn't
+// show an awkwardly zoomed sliver of a landscape image.
+const HERO_SLIDES_MOBILE = [
+  { src: '/bgwayanad/mobileslider1.png' },
+  { src: '/bgwayanad/mobileslider2.png' },
+  { src: '/bgwayanad/mobileslider3.png' },
+];
+
 // Matched by index to c.about.cards: Pravasi Protection & Welfare, Economic Empowerment, Social Unity.
 const ABOUT_IMAGES = ['/bgwayanad/abt1.jpg', '/bgwayanad/abt2.jpg', '/bgwayanad/abt3.jpg'];
 
@@ -73,8 +81,17 @@ export default function HomePage() {
   const [news, setNews] = useState([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [slideIdx, setSlideIdx] = useState(0);
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 640px)').matches);
   const headerRef = useRef(null);
   const [headerH, setHeaderH] = useState(110);
+  const heroSlides = isMobile ? HERO_SLIDES_MOBILE : HERO_SLIDES;
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)');
+    const onChange = (e) => setIsMobile(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -92,7 +109,7 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    const t = setInterval(() => setSlideIdx((i) => (i + 1) % HERO_SLIDES.length), 6000);
+    const t = setInterval(() => setSlideIdx((i) => i + 1), 6000);
     return () => clearInterval(t);
   }, []);
 
@@ -246,15 +263,15 @@ export default function HomePage() {
       {/* ===== Hero (slider) ===== */}
       <section className="hp-hero" id="home">
         <div className="hp-hero-slides">
-          {HERO_SLIDES.map((slide, i) => (
+          {heroSlides.map((slide, i) => (
             <div
-              key={i}
-              className={`hp-hero-slide ${i === slideIdx ? 'active' : ''}`}
+              key={slide.src}
+              className={`hp-hero-slide ${i === slideIdx % heroSlides.length ? 'active' : ''}`}
               style={{ backgroundImage: `url(${slide.src})` }}
             />
           ))}
         </div>
-        {!HERO_SLIDES[slideIdx].builtin && (
+        {!heroSlides[slideIdx % heroSlides.length].builtin && (
           <>
             <div className="hp-hero-overlay" />
             <svg className="hp-hero-watermark" viewBox="0 0 200 180" aria-hidden="true">
@@ -286,8 +303,8 @@ export default function HomePage() {
           </div>
         </div>
         <div className="hp-hero-dots">
-          {HERO_SLIDES.map((_, i) => (
-            <button key={i} className={i === slideIdx ? 'on' : ''} aria-label={`Slide ${i + 1}`} onClick={() => setSlideIdx(i)} />
+          {heroSlides.map((_, i) => (
+            <button key={i} className={i === slideIdx % heroSlides.length ? 'on' : ''} aria-label={`Slide ${i + 1}`} onClick={() => setSlideIdx(i)} />
           ))}
         </div>
         <button className="hp-scroll-hint" onClick={() => goTo('about')} aria-label="Scroll down">
