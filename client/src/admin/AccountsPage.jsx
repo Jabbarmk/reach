@@ -12,6 +12,16 @@ const LEDGER_COLUMNS = [
   { label: 'Recorded By', value: 'recorded_by' },
 ];
 
+const STATEMENT_COLUMNS = [
+  { label: 'Date', value: (r) => new Date(r.entry_date).toLocaleDateString('en-IN') },
+  { label: 'Type', value: (r) => (r.kind === 'received' ? 'Received' : 'Payment') },
+  { label: 'Category', value: 'category_name' },
+  { label: 'Note', value: (r) => r.note || '' },
+  { label: 'Method', value: (r) => r.method || '' },
+  { label: 'Recorded By', value: 'recorded_by' },
+  { label: 'Amount', value: (r) => (r.kind === 'received' ? Number(r.amount) : -Number(r.amount)) },
+];
+
 const KIND_META = {
   received: { label: 'Received', addLabel: '+ Money Received', emptyText: 'No money received recorded yet.' },
   expense: { label: 'Payments', addLabel: '+ Payment / Expense', emptyText: 'No payments/expenses recorded yet.' },
@@ -225,6 +235,11 @@ function LedgerReportsTab() {
 
   const clear = () => { setFrom(''); setTo(''); load('', ''); };
 
+  const exportStatement = () => {
+    const range = filtered ? `${from || 'start'}_to_${to || 'end'}` : 'all';
+    exportCsv(`accounts-statement-${range}.csv`, STATEMENT_COLUMNS, entries);
+  };
+
   return (
     <>
       {error && <div className="alert error">{error}</div>}
@@ -233,6 +248,8 @@ function LedgerReportsTab() {
         <input type="date" value={to} onChange={(e) => setTo(e.target.value)} title="To date" />
         <button className="btn btn-primary btn-sm" onClick={() => load()}>Update</button>
         {filtered && <button className="btn btn-ghost btn-sm" onClick={clear}>Clear filter — show all</button>}
+        <span style={{ flex: 1 }} />
+        <button className="btn btn-outline btn-sm" onClick={exportStatement} disabled={!entries?.length}>⬇ Export to Excel</button>
       </div>
 
       {!summary || !entries ? (
