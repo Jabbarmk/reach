@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS applications (
   panchayath VARCHAR(120) NOT NULL,
   blood_group ENUM('A+','A-','B+','B-','AB+','AB-','O+','O-') NOT NULL,
   date_of_birth DATE NOT NULL,
-  aadhaar_number VARCHAR(12) NOT NULL,
+  aadhaar_number VARCHAR(60) NOT NULL,
   qualification VARCHAR(120) NOT NULL,
 
   -- Expat status
