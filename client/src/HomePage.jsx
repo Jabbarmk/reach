@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from './api.js';
-import { planValidityText } from './formConfig.js';
 import { formatDate } from './dateUtils.js';
 
 const SECTIONS = ['home', 'about', 'membership', 'activities', 'contact'];
@@ -411,7 +410,7 @@ export default function HomePage() {
                     <h3>{p.name}</h3>
                     <span className="hp-plan-divider" />
                     <div className="fee">₹{Number(p.fee).toLocaleString('en-IN')}</div>
-                    <p>{planValidityText(p)}</p>
+                    <p>{p.validity_type === 'lifetime' ? 'Valid for lifetime' : 'Valid 1 January 2027 – 31 December 2028'}</p>
                     <Link className={`hp-cta sm ${featured ? 'dark' : ''}`} to="/register">Register Now <span className="arr">→</span></Link>
                   </div>
                 </div>
