@@ -1,4 +1,5 @@
 import { WAYANAD_LOCAL_BODIES, QUALIFICATIONS, BLOOD_GROUPS, COUNTRIES } from './data/countries.js';
+import { formatDate } from './dateUtils.js';
 
 // Fallback used only if the API is unreachable, so the form still renders.
 const FALLBACK = {
@@ -34,6 +35,6 @@ export function buildConfig(raw) {
 export function planValidityText(plan) {
   if (!plan) return '';
   if (plan.validity_type === 'lifetime') return 'Valid for lifetime';
-  const fmt = (d) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+  const fmt = (d) => formatDate(d, { day: 'numeric', month: 'long', year: 'numeric' });
   return `Valid ${fmt(plan.validity_start)} – ${fmt(plan.validity_end)}`;
 }

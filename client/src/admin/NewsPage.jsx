@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import { formatDate } from '../dateUtils.js';
 import NewsModal from './NewsModal.jsx';
 
 export default function NewsPage() {
@@ -83,7 +84,7 @@ export default function NewsPage() {
                   </td>
                   <td><span className={`pill ${it.kind === 'event' ? 'orange' : 'blue'}`}>{it.kind === 'event' ? 'Event' : 'News'}</span></td>
                   <td><span className="pill blue">{it.tag}</span></td>
-                  <td>{new Date(it.published_on).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                  <td>{formatDate(it.published_on, { day: 'numeric', month: 'short', year: 'numeric' })}</td>
                   <td>
                     <button type="button" className={`switch ${it.is_published ? 'on' : ''}`} onClick={() => togglePublished(it)} aria-label="Toggle published">
                       <span className="knob" />

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import { api, fetchDocBlob, setToken, exportCsv } from '../api.js';
+import { parseLocalDate, formatDate } from '../dateUtils.js';
 import { AppsTable, MemberGrid } from './shared.jsx';
 import PaymentModal from './PaymentModal.jsx';
 
@@ -581,7 +582,7 @@ function PaymentDueTab({ rows, error, onRecord, onEditPayment }) {
                     {r.is_new_application && <div>Awaiting first payment</div>}
                     {r.is_renewal_due && (
                       <div>
-                        2-year term {new Date(r.renewal_due_on) <= new Date() ? 'ended' : 'ends'} {new Date(r.renewal_due_on).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        2-year term {parseLocalDate(r.renewal_due_on) <= new Date() ? 'ended' : 'ends'} {formatDate(r.renewal_due_on, { day: 'numeric', month: 'short', year: 'numeric' })}
                       </div>
                     )}
                     {r.is_balance_due && (

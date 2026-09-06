@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from './api.js';
+import { formatDate } from './dateUtils.js';
 
 function Lightbox({ images, index, onClose, onNav }) {
   useEffect(() => {
@@ -164,7 +165,7 @@ export default function NewsListPage() {
                   <h2>{n.title}</h2>
                   <p>{n.body}</p>
                   <span className="hp-news-date">
-                    {new Date(n.published_on).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    {formatDate(n.published_on, { day: 'numeric', month: 'long', year: 'numeric' })}
                   </span>
                 </div>
               </article>
@@ -187,7 +188,7 @@ export default function NewsListPage() {
                     <h2>{n.title}</h2>
                     <p>{n.body}</p>
                     <span className="hp-news-date">
-                      {new Date(n.published_on).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      {formatDate(n.published_on, { day: 'numeric', month: 'long', year: 'numeric' })}
                     </span>
                     {urls.length > 1 && (
                       <div className="newsx-thumb-strip">

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from './api.js';
 import { planValidityText } from './formConfig.js';
+import { formatDate } from './dateUtils.js';
 
 const SECTIONS = ['home', 'about', 'membership', 'activities', 'contact'];
 
@@ -470,7 +471,7 @@ export default function HomePage() {
                 <div>
                   <h3>{n.title}</h3>
                   <p>{n.body}</p>
-                  <span className="hp-news-date">{new Date(n.published_on).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                  <span className="hp-news-date">{formatDate(n.published_on, { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                 </div>
               </div>
             ))}

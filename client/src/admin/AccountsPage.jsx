@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { api, exportCsv } from '../api.js';
+import { formatDate } from '../dateUtils.js';
 import LedgerEntryModal from './LedgerEntryModal.jsx';
 
 const LEDGER_COLUMNS = [
-  { label: 'Date', value: (r) => new Date(r.entry_date).toLocaleDateString('en-IN') },
+  { label: 'Date', value: (r) => formatDate(r.entry_date) },
   { label: 'Category', value: 'category_name' },
   { label: 'Amount', value: (r) => Number(r.amount) },
   { label: 'Method', value: (r) => r.method || '' },
@@ -13,7 +14,7 @@ const LEDGER_COLUMNS = [
 ];
 
 const STATEMENT_COLUMNS = [
-  { label: 'Date', value: (r) => new Date(r.entry_date).toLocaleDateString('en-IN') },
+  { label: 'Date', value: (r) => formatDate(r.entry_date) },
   { label: 'Type', value: (r) => (r.kind === 'received' ? 'Received' : 'Payment') },
   { label: 'Category', value: 'category_name' },
   { label: 'Note', value: (r) => r.note || '' },
@@ -98,7 +99,7 @@ function LedgerEntriesTab({ kind, isAdmin }) {
             <tbody>
               {rows?.map((r) => (
                 <tr key={r.id}>
-                  <td>{new Date(r.entry_date).toLocaleDateString('en-IN')}</td>
+                  <td>{formatDate(r.entry_date)}</td>
                   <td>{r.category_name}</td>
                   <td style={{ fontWeight: 700 }}>{money(r.amount)}</td>
                   <td>{r.method || '—'}</td>
@@ -284,7 +285,7 @@ function LedgerReportsTab() {
                 <tbody>
                   {entries.map((r) => (
                     <tr key={`${r.kind}-${r.id}`}>
-                      <td>{new Date(r.entry_date).toLocaleDateString('en-IN')}</td>
+                      <td>{formatDate(r.entry_date)}</td>
                       <td>
                         <span className={`pill ${r.kind === 'received' ? 'green' : 'red'}`}>
                           {r.kind === 'received' ? 'Received' : 'Payment'}
