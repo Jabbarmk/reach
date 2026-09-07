@@ -10,7 +10,7 @@ export const statusPill = (s) => {
   return <span className={`pill ${map[s] || 'grey'}`}>{s}</span>;
 };
 
-export function AppsTable({ rows, emptyText = 'No applications found.', renderActions }) {
+export function AppsTable({ rows, emptyText = 'No applications found.', renderActions, fields = DEFAULT_GRID_FIELDS }) {
   const navigate = useNavigate();
   return (
     <div className="table-card">
@@ -18,8 +18,14 @@ export function AppsTable({ rows, emptyText = 'No applications found.', renderAc
         <table className="apps">
           <thead>
             <tr>
-              <th>Reference</th><th>Name</th><th>Place</th><th>Plan</th>
-              <th>Expat</th><th>ID Card</th><th>Status</th><th>Payment</th><th>Submitted</th>
+              <th>Reference</th><th>Name</th>
+              {fields.place && <th>Place</th>}
+              {fields.plan && <th>Plan</th>}
+              {fields.expat && <th>Expat</th>}
+              {fields.id_card && <th>ID Card</th>}
+              {fields.status && <th>Status</th>}
+              {fields.payment && <th>Payment</th>}
+              {fields.submitted && <th>Submitted</th>}
               {renderActions && <th style={{ width: 130 }}>Actions</th>}
             </tr>
           </thead>
@@ -28,13 +34,13 @@ export function AppsTable({ rows, emptyText = 'No applications found.', renderAc
               <tr key={r.id} onClick={() => navigate(`/admin/applications/${r.id}`)}>
                 <td style={{ fontWeight: 700, color: 'var(--blue-800)' }}>{r.membership_id || r.reference_no}</td>
                 <td>{r.name}</td>
-                <td>{r.place}</td>
-                <td>{r.membership_type === 'lifetime' ? 'Lifetime ₹2,000' : 'Two-Year ₹300'}</td>
-                <td>{r.is_expat ? 'Yes' : 'No'}</td>
-                <td style={{ fontFamily: 'monospace' }}>{r.aadhaar_number}</td>
-                <td>{statusPill(r.status)}</td>
-                <td>{r.payment_status === 'Paid' ? <span className="pill green">Paid</span> : <span className="pill grey">Unpaid</span>}</td>
-                <td>{new Date(r.created_at).toLocaleDateString('en-IN')}</td>
+                {fields.place && <td>{r.place}</td>}
+                {fields.plan && <td>{r.membership_type === 'lifetime' ? 'Lifetime ₹2,000' : 'Two-Year ₹300'}</td>}
+                {fields.expat && <td>{r.is_expat ? 'Yes' : 'No'}</td>}
+                {fields.id_card && <td style={{ fontFamily: 'monospace' }}>{r.aadhaar_number}</td>}
+                {fields.status && <td>{statusPill(r.status)}</td>}
+                {fields.payment && <td>{r.payment_status === 'Paid' ? <span className="pill green">Paid</span> : <span className="pill grey">Unpaid</span>}</td>}
+                {fields.submitted && <td>{new Date(r.created_at).toLocaleDateString('en-IN')}</td>}
                 {renderActions && (
                   <td onClick={(e) => e.stopPropagation()} style={{ cursor: 'default' }}>
                     {renderActions(r)}
@@ -92,7 +98,7 @@ const planLabel = (r) => (r.membership_type === 'lifetime' ? 'Lifetime' : 'Two-Y
  * caller so this component stays fetch-free). `menuItems(row)` returns CardMenu items, or
  * omit for a plain read-only grid.
  */
-const DEFAULT_GRID_FIELDS = { photo: true, status: true, payment: true, place: true, plan: true, expat: true };
+const DEFAULT_GRID_FIELDS = { photo: true, status: true, payment: true, place: true, plan: true, expat: true, id_card: true, submitted: true };
 
 export function MemberGrid({ rows, size = 'default', photoUrls, menuItems, emptyText = 'No members found.', fields = DEFAULT_GRID_FIELDS }) {
   const navigate = useNavigate();

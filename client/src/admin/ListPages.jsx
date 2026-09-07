@@ -200,6 +200,7 @@ function usePersisted(key, initial) {
 const GRID_FIELD_DEFS = [
   ['photo', 'Photo'], ['status', 'Status'], ['payment', 'Payment'],
   ['place', 'Place'], ['plan', 'Plan'], ['expat', 'Expat'],
+  ['id_card', 'ID Card'], ['submitted', 'Submitted'],
 ];
 const DEFAULT_GRID_FIELDS = Object.fromEntries(GRID_FIELD_DEFS.map(([k]) => [k, true]));
 
@@ -378,7 +379,7 @@ export function MembersPage() {
             <button className={`seg-btn ${cardSize === 'compact' ? 'active' : ''}`} onClick={() => setCardSize('compact')}>Compact</button>
           </div>
         )}
-        {view === 'grid' && <FieldsMenu fields={gridFields} setFields={setGridFields} />}
+        <FieldsMenu fields={gridFields} setFields={setGridFields} />
         <span style={{ flex: 1 }} />
         <button className="btn btn-outline btn-sm" onClick={exportMembers} disabled={!ctl.rows?.length}>⬇ Export to Excel</button>
       </div>
@@ -387,14 +388,14 @@ export function MembersPage() {
         <>
           <Toolbar ctl={ctl} withStatus />
           {view === 'table'
-            ? <AppsTable rows={ctl.rows} renderActions={isAdmin ? memberActions : undefined} />
+            ? <AppsTable rows={ctl.rows} renderActions={isAdmin ? memberActions : undefined} fields={gridFields} />
             : <MemberGrid rows={ctl.rows} size={cardSize} photoUrls={photoUrls} menuItems={isAdmin ? memberMenuItems : undefined} fields={gridFields} />}
         </>
       ) : (
         <>
           <Toolbar ctl={ctl} />
           {view === 'table'
-            ? <AppsTable rows={ctl.rows} emptyText={deletedEmptyText} renderActions={deletedActions} />
+            ? <AppsTable rows={ctl.rows} emptyText={deletedEmptyText} renderActions={deletedActions} fields={gridFields} />
             : <MemberGrid rows={ctl.rows} size={cardSize} photoUrls={photoUrls} menuItems={deletedMenuItems} emptyText={deletedEmptyText} fields={gridFields} />}
         </>
       )}
