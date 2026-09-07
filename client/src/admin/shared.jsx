@@ -92,10 +92,18 @@ const planLabel = (r) => (r.membership_type === 'lifetime' ? 'Lifetime' : 'Two-Y
  * caller so this component stays fetch-free). `menuItems(row)` returns CardMenu items, or
  * omit for a plain read-only grid.
  */
-export function MemberGrid({ rows, size = 'default', photoUrls, menuItems, emptyText = 'No members found.' }) {
+const DEFAULT_GRID_FIELDS = { photo: true, status: true, payment: true, place: true, plan: true, expat: true };
+
+export function MemberGrid({ rows, size = 'default', photoUrls, menuItems, emptyText = 'No members found.', fields = DEFAULT_GRID_FIELDS }) {
   const navigate = useNavigate();
   if (!rows) return <div className="empty-note"><span className="spinner lg" /></div>;
   if (rows.length === 0) return <div className="empty-note">{emptyText}</div>;
+
+  const metaParts = (r) => [
+    fields.place && r.place,
+    fields.plan && planLabel(r),
+    fields.expat && r.is_expat && 'Expat',
+  ].filter(Boolean);
 
   return (
     <div className={`member-grid ${size === 'compact' ? 'compact' : ''}`}>
@@ -104,19 +112,23 @@ export function MemberGrid({ rows, size = 'default', photoUrls, menuItems, empty
           <div className="mg-top">
             {menuItems && <CardMenu items={menuItems(r)} />}
           </div>
-          <div className="mg-photo-wrap">
-            {photoUrls?.[r.id]
-              ? <img src={photoUrls[r.id]} alt={r.name} className="mg-photo" />
-              : <div className="mg-photo placeholder">👤</div>}
-          </div>
+          {fields.photo && (
+            <div className="mg-photo-wrap">
+              {photoUrls?.[r.id]
+                ? <img src={photoUrls[r.id]} alt={r.name} className="mg-photo" />
+                : <div className="mg-photo placeholder">👤</div>}
+            </div>
+          )}
           <div className="mg-body">
             <div className="mg-name" title={r.name}>{r.name}</div>
             <div className="mg-id">{r.membership_id || r.reference_no}</div>
-            <div className="mg-pills">
-              {statusPill(r.status)}
-              {r.payment_status === 'Paid' ? <span className="pill green">Paid</span> : <span className="pill grey">Unpaid</span>}
-            </div>
-            <div className="mg-meta">{r.place}{r.place ? ' · ' : ''}{planLabel(r)}{r.is_expat ? ' · Expat' : ''}</div>
+            {(fields.status || fields.payment) && (
+              <div className="mg-pills">
+                {fields.status && statusPill(r.status)}
+                {fields.payment && (r.payment_status === 'Paid' ? <span className="pill green">Paid</span> : <span className="pill grey">Unpaid</span>)}
+              </div>
+            )}
+            {metaParts(r).length > 0 && <div className="mg-meta">{metaParts(r).join(' · ')}</div>}
           </div>
         </div>
       ))}

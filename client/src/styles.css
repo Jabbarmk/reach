@@ -1141,6 +1141,22 @@ img { max-width: 100%; }
 .card-menu-item.danger:hover { background: var(--red-50); }
 .card-menu-item .mi-ico { font-size: 14px; width: 16px; text-align: center; }
 
+/* "Fields" show/hide dropdown for the member grid */
+.fields-menu { position: relative; }
+.fields-menu-btn { border: 1.5px solid var(--line); border-radius: 10px; }
+.fields-menu-pop {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; min-width: 150px;
+  background: #fff; border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: var(--shadow); padding: 8px; text-align: left;
+}
+.fields-menu-item {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 7px 8px; border-radius: 7px; font-size: 13px; font-weight: 600; color: var(--ink);
+  cursor: pointer;
+}
+.fields-menu-item:hover { background: var(--blue-50); }
+.fields-menu-item input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; }
+
 .logo-edit-row { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
 .logo-preview-box {
   border: 1.5px dashed var(--line); border-radius: 12px; padding: 14px 18px;

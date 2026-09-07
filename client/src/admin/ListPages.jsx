@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import { api, fetchDocBlob, setToken, exportCsv } from '../api.js';
 import { parseLocalDate, formatDate } from '../dateUtils.js';
@@ -197,6 +197,53 @@ function usePersisted(key, initial) {
   return [value, setValue];
 }
 
+const GRID_FIELD_DEFS = [
+  ['photo', 'Photo'], ['status', 'Status'], ['payment', 'Payment'],
+  ['place', 'Place'], ['plan', 'Plan'], ['expat', 'Expat'],
+];
+const DEFAULT_GRID_FIELDS = Object.fromEntries(GRID_FIELD_DEFS.map(([k]) => [k, true]));
+
+function usePersistedFields(key) {
+  const [fields, setFields] = useState(() => {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? { ...DEFAULT_GRID_FIELDS, ...JSON.parse(raw) } : DEFAULT_GRID_FIELDS;
+    } catch { return DEFAULT_GRID_FIELDS; }
+  });
+  useEffect(() => { try { localStorage.setItem(key, JSON.stringify(fields)); } catch { /* ignore */ } }, [key, fields]);
+  return [fields, setFields];
+}
+
+function FieldsMenu({ fields, setFields }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  const toggle = (key) => setFields((f) => ({ ...f, [key]: !f[key] }));
+
+  return (
+    <div className="fields-menu" ref={ref}>
+      <button type="button" className="seg-btn fields-menu-btn" onClick={() => setOpen((o) => !o)}>⚙ Fields</button>
+      {open && (
+        <div className="fields-menu-pop">
+          {GRID_FIELD_DEFS.map(([key, label]) => (
+            <label className="fields-menu-item" key={key}>
+              <input type="checkbox" checked={fields[key]} onChange={() => toggle(key)} />
+              {label}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MembersSummary({ stats }) {
   if (!stats) return null;
   const count = (name) => stats.byStatus.find((r) => r.status === name)?.count || 0;
@@ -227,6 +274,7 @@ export function MembersPage() {
   const [actionError, setActionError] = useState(null);
   const [view, setView] = usePersisted('reach_members_view', 'grid');
   const [cardSize, setCardSize] = usePersisted('reach_members_card_size', 'default');
+  const [gridFields, setGridFields] = usePersistedFields('reach_members_grid_fields');
   const [photoUrls, setPhotoUrls] = useState({});
 
   const run = async (fn) => {
@@ -330,6 +378,7 @@ export function MembersPage() {
             <button className={`seg-btn ${cardSize === 'compact' ? 'active' : ''}`} onClick={() => setCardSize('compact')}>Compact</button>
           </div>
         )}
+        {view === 'grid' && <FieldsMenu fields={gridFields} setFields={setGridFields} />}
         <span style={{ flex: 1 }} />
         <button className="btn btn-outline btn-sm" onClick={exportMembers} disabled={!ctl.rows?.length}>⬇ Export to Excel</button>
       </div>
@@ -339,14 +388,14 @@ export function MembersPage() {
           <Toolbar ctl={ctl} withStatus />
           {view === 'table'
             ? <AppsTable rows={ctl.rows} renderActions={isAdmin ? memberActions : undefined} />
-            : <MemberGrid rows={ctl.rows} size={cardSize} photoUrls={photoUrls} menuItems={isAdmin ? memberMenuItems : undefined} />}
+            : <MemberGrid rows={ctl.rows} size={cardSize} photoUrls={photoUrls} menuItems={isAdmin ? memberMenuItems : undefined} fields={gridFields} />}
         </>
       ) : (
         <>
           <Toolbar ctl={ctl} />
           {view === 'table'
             ? <AppsTable rows={ctl.rows} emptyText={deletedEmptyText} renderActions={deletedActions} />
-            : <MemberGrid rows={ctl.rows} size={cardSize} photoUrls={photoUrls} menuItems={deletedMenuItems} emptyText={deletedEmptyText} />}
+            : <MemberGrid rows={ctl.rows} size={cardSize} photoUrls={photoUrls} menuItems={deletedMenuItems} emptyText={deletedEmptyText} fields={gridFields} />}
         </>
       )}
       {editId && (
