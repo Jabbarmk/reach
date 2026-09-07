@@ -79,9 +79,15 @@ router.get('/applications/stats', requireScreen('overview'), async (req, res, ne
               SUM(status IN ('Pending Verification','Submitted','Correction Requested')) AS pending
        FROM applications WHERE deleted_at IS NULL`
     );
+    const [byCountry] = await pool.query(
+      `SELECT COALESCE(NULLIF(working_country, ''), 'India') AS country, COUNT(*) AS count
+       FROM applications WHERE deleted_at IS NULL
+       GROUP BY country ORDER BY count DESC`
+    );
     const t = totals[0];
     res.json({
       byStatus: rows,
+      byCountry,
       total: t.total,
       paid: Number(t.paid) || 0,
       recent: Number(t.recent) || 0,

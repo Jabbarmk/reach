@@ -966,6 +966,19 @@ img { max-width: 100%; }
 .ovr-recent-head a { font-size: 13.5px; font-weight: 700; color: var(--blue-700); text-decoration: none; }
 .ovr-recent-head a:hover { text-decoration: underline; }
 
+.ovr-country-card {
+  background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 18px 22px; margin-bottom: 24px;
+}
+.ovr-country-card h2 { font-size: 16px; color: var(--blue-900); margin-bottom: 14px; }
+.ovr-country-list { display: flex; flex-direction: column; gap: 9px; max-height: 260px; overflow-y: auto; }
+.ovr-country-row { display: flex; align-items: center; gap: 12px; }
+.ovr-country-name { flex: 0 0 140px; font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ovr-country-bar { flex: 1; height: 7px; background: var(--blue-50); border-radius: 999px; overflow: hidden; }
+.ovr-country-fill { height: 100%; background: var(--teal-500); border-radius: 999px; }
+.ovr-country-count { flex: 0 0 32px; text-align: right; font-size: 13px; font-weight: 700; color: var(--blue-800); }
+@media (max-width: 640px) { .ovr-country-name { flex-basis: 96px; font-size: 12px; } }
+
 /* ============ Registration toggle & closed page ============ */
 .switch {
   width: 52px; height: 28px; border-radius: 999px; border: none; flex-shrink: 0;

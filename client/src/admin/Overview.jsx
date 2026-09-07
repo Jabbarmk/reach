@@ -100,6 +100,23 @@ export default function Overview() {
         ))}
       </div>
 
+      {stats?.byCountry?.length > 0 && (
+        <div className="ovr-country-card">
+          <h2>Members by Country</h2>
+          <div className="ovr-country-list">
+            {stats.byCountry.map((c) => (
+              <div className="ovr-country-row" key={c.country}>
+                <span className="ovr-country-name">{c.country}</span>
+                <div className="ovr-country-bar">
+                  <div className="ovr-country-fill" style={{ width: `${(c.count / stats.byCountry[0].count) * 100}%` }} />
+                </div>
+                <span className="ovr-country-count">{c.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="ovr-recent-head">
         <h2>Recent applications</h2>
         <Link to="/admin/members">View all →</Link>
