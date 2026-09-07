@@ -64,6 +64,12 @@ export const api = {
   createCommitteeAssignment: (a) => request('/api/admin/committee/assignments', { method: 'POST', json: a }),
   updateCommitteeAssignment: (id, a) => request(`/api/admin/committee/assignments/${id}`, { method: 'PUT', json: a }),
   deleteCommitteeAssignment: (id) => request(`/api/admin/committee/assignments/${id}`, { method: 'DELETE' }),
+  listMeetings: (params = {}) => request(`/api/admin/committee/meetings?${new URLSearchParams(params)}`),
+  getMeeting: (id) => request(`/api/admin/committee/meetings/${id}`),
+  createMeeting: (formData) => request('/api/admin/committee/meetings', { method: 'POST', body: formData }),
+  updateMeeting: (id, formData) => request(`/api/admin/committee/meetings/${id}`, { method: 'PUT', body: formData }),
+  deleteMeeting: (id) => request(`/api/admin/committee/meetings/${id}`, { method: 'DELETE' }),
+  meetingAttachmentUrl: (id) => `/api/admin/committee/meetings/${id}/attachment`,
   // Receipts
   listReceipts: (params = {}) => request(`/api/admin/receipts?${new URLSearchParams(params)}`),
   receiptUrl: (paymentId) => `/api/admin/receipts/${paymentId}/pdf`,
@@ -140,6 +146,12 @@ export async function fetchDocBlob(docId) {
 export async function fetchReceiptBlob(paymentId) {
   const res = await fetch(api.receiptUrl(paymentId), { headers: { Authorization: `Bearer ${getToken()}` } });
   if (!res.ok) throw new Error('Could not load receipt');
+  return URL.createObjectURL(await res.blob());
+}
+
+export async function fetchMeetingAttachmentBlob(meetingId) {
+  const res = await fetch(api.meetingAttachmentUrl(meetingId), { headers: { Authorization: `Bearer ${getToken()}` } });
+  if (!res.ok) throw new Error('Could not load attachment');
   return URL.createObjectURL(await res.blob());
 }
 

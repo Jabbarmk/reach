@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { api } from '../api.js';
+import { useOutletContext } from 'react-router-dom';
+import { api, fetchMeetingAttachmentBlob } from '../api.js';
+import { formatDate } from '../dateUtils.js';
 
 function PageHead({ title, sub, children }) {
   return (
@@ -371,7 +373,370 @@ function OptionsTab({ options, onChanged }) {
   );
 }
 
+/* ===== Minutes of Meeting ===== */
+const MEETING_TEXT_FIELDS = [
+  ['agenda', 'Meeting Agenda'],
+  ['discussed_points', 'Discussed Points'],
+  ['last_meeting_updates', 'Last Meeting Updates'],
+  ['new_decisions', 'New Decisions'],
+];
+
+function AttendancePicker({ members, present, absent, setPresent, setAbsent }) {
+  if (!members) return <div className="hint">Select a Committee Level and Wing above to load its members.</div>;
+  if (members.length === 0) return <div className="hint">No one is assigned to this committee yet — add assignments first.</div>;
+
+  const setStatus = (id, status) => {
+    setPresent((p) => (status === 'present' ? [...new Set([...p, id])] : p.filter((x) => x !== id)));
+    setAbsent((a) => (status === 'absent' ? [...new Set([...a, id])] : a.filter((x) => x !== id)));
+  };
+
+  return (
+    <div className="table-card" style={{ marginBottom: 4 }}>
+      <div className="table-scroll" style={{ maxHeight: 260 }}>
+        <table className="apps">
+          <thead><tr><th>Member</th><th style={{ width: 190 }}>Attendance</th></tr></thead>
+          <tbody>
+            {members.map((m) => {
+              const isPresent = present.includes(m.application_id);
+              const isAbsent = absent.includes(m.application_id);
+              return (
+                <tr key={m.application_id}>
+                  <td>{m.member_name} <span style={{ color: 'var(--muted)', fontSize: 12 }}>({m.designation})</span></td>
+                  <td>
+                    <div className="seg" role="group" aria-label={`Attendance for ${m.member_name}`}>
+                      <button type="button" className={`seg-btn ${isPresent ? 'active' : ''}`} onClick={() => setStatus(m.application_id, 'present')}>Present</button>
+                      <button type="button" className={`seg-btn ${isAbsent ? 'active' : ''}`} onClick={() => setStatus(m.application_id, 'absent')}>Absent</button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function MeetingFormModal({ meeting, options, panchayaths, onClose, onSaved }) {
+  const isEdit = !!meeting;
+  const [committeeLevel, setCommitteeLevel] = useState(meeting?.committee_level || '');
+  const [localBody, setLocalBody] = useState(meeting?.local_body || '');
+  const [wing, setWing] = useState(meeting?.wing || '');
+  const [meetingDate, setMeetingDate] = useState(meeting?.meeting_date?.slice(0, 10) || '');
+  const [meetingTime, setMeetingTime] = useState(meeting?.meeting_time?.slice(0, 5) || '');
+  const [venue, setVenue] = useState(meeting?.venue || '');
+  const [fields, setFields] = useState(Object.fromEntries(MEETING_TEXT_FIELDS.map(([k]) => [k, meeting?.[k] || ''])));
+  const [preparedBy, setPreparedBy] = useState(meeting?.prepared_by || '');
+  const [approvedBy, setApprovedBy] = useState(meeting?.approved_by || '');
+  const [attachment, setAttachment] = useState(null);
+  const [members, setMembers] = useState(null);
+  const [present, setPresent] = useState(meeting?.attendance?.filter((a) => a.status === 'present').map((a) => a.application_id) || []);
+  const [absent, setAbsent] = useState(meeting?.attendance?.filter((a) => a.status === 'absent').map((a) => a.application_id) || []);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!committeeLevel || !wing) { setMembers(null); return; }
+    (async () => {
+      try { setMembers(await api.listCommitteeAssignments({ committee_level: committeeLevel, wing })); }
+      catch { setMembers([]); }
+    })();
+  }, [committeeLevel, wing]);
+
+  const save = async () => {
+    setError(null);
+    if (!committeeLevel) return setError('Select a committee level.');
+    if (needsLocalBody(committeeLevel) && !localBody) return setError('Select the panchayat/municipality.');
+    if (!wing) return setError('Select the Executive Committee / Wing.');
+    if (!meetingDate) return setError('Select the meeting date.');
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('committee_level', committeeLevel);
+      fd.append('local_body', needsLocalBody(committeeLevel) ? localBody : '');
+      fd.append('wing', wing);
+      fd.append('meeting_date', meetingDate);
+      fd.append('meeting_time', meetingTime);
+      fd.append('venue', venue);
+      MEETING_TEXT_FIELDS.forEach(([k]) => fd.append(k, fields[k]));
+      fd.append('prepared_by', preparedBy);
+      fd.append('approved_by', approvedBy);
+      fd.append('participants', JSON.stringify(present));
+      fd.append('absentees', JSON.stringify(absent));
+      if (attachment) fd.append('attachment', attachment);
+
+      if (isEdit) await api.updateMeeting(meeting.id, fd);
+      else await api.createMeeting(fd);
+      onSaved();
+    } catch (err) { setError(err.message); setBusy(false); }
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="crop-modal" style={{ maxWidth: 640 }}>
+        <div className="crop-head">
+          <h3>{isEdit ? 'Edit Meeting Minutes' : 'New Meeting Minutes'}</h3>
+          <p>Record the committee, agenda, attendance and decisions for this meeting.</p>
+        </div>
+        <div style={{ padding: '16px 20px', maxHeight: '68vh', overflowY: 'auto' }}>
+          {error && <div className="alert error">{error}</div>}
+
+          <div className="grid2">
+            <div className="field">
+              <label>Committee Level <span className="req">*</span></label>
+              <select value={committeeLevel} onChange={(e) => { setCommitteeLevel(e.target.value); setLocalBody(''); }}>
+                <option value="">Select…</option>
+                {options.levels.map((l) => <option key={l} value={l}>{l}</option>)}
+              </select>
+            </div>
+            {needsLocalBody(committeeLevel) && (
+              <div className="field">
+                <label>Panchayath / Municipality <span className="req">*</span></label>
+                <select value={localBody} onChange={(e) => setLocalBody(e.target.value)}>
+                  <option value="">Select…</option>
+                  {panchayaths.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+            )}
+            <div className="field">
+              <label>Executive Committee / Wing <span className="req">*</span></label>
+              <select value={wing} onChange={(e) => setWing(e.target.value)}>
+                <option value="">Select…</option>
+                {options.wings.map((w) => <option key={w} value={w}>{w}</option>)}
+              </select>
+            </div>
+            <div className="field">
+              <label>Meeting Date <span className="req">*</span></label>
+              <input type="date" value={meetingDate} onChange={(e) => setMeetingDate(e.target.value)} />
+            </div>
+            <div className="field">
+              <label>Meeting Time</label>
+              <input type="time" value={meetingTime} onChange={(e) => setMeetingTime(e.target.value)} />
+            </div>
+            <div className="field">
+              <label>Venue</label>
+              <input type="text" value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="e.g. Panchayat Community Hall" />
+            </div>
+          </div>
+
+          {MEETING_TEXT_FIELDS.map(([key, label]) => (
+            <div className="field" key={key}>
+              <label>{label}</label>
+              <textarea
+                rows={key === 'agenda' ? 2 : 3} value={fields[key]} style={{ width: '100%', resize: 'vertical' }}
+                onChange={(e) => setFields((f) => ({ ...f, [key]: e.target.value }))}
+              />
+            </div>
+          ))}
+
+          <div className="field">
+            <label>Participated / Absent Members</label>
+            <AttendancePicker members={members} present={present} absent={absent} setPresent={setPresent} setAbsent={setAbsent} />
+          </div>
+
+          <div className="grid2">
+            <div className="field">
+              <label>Prepared By</label>
+              <input type="text" value={preparedBy} onChange={(e) => setPreparedBy(e.target.value)} placeholder="Name & designation" />
+            </div>
+            <div className="field">
+              <label>Approved By</label>
+              <input type="text" value={approvedBy} onChange={(e) => setApprovedBy(e.target.value)} placeholder="Name & designation" />
+            </div>
+          </div>
+
+          <div className="field">
+            <label>Attachment (signed copy — PDF, JPG or PNG)</label>
+            <input type="file" accept="application/pdf,image/jpeg,image/png" onChange={(e) => setAttachment(e.target.files?.[0] || null)} />
+            {isEdit && meeting.attachment_file && !attachment && <div className="hint">Current: {meeting.attachment_original_name} (choose a file to replace it)</div>}
+          </div>
+        </div>
+        <div className="crop-actions">
+          <button className="btn btn-outline btn-sm" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary btn-sm" onClick={save} disabled={busy}>
+            {busy ? 'Saving…' : isEdit ? 'Save Changes' : 'Save Minutes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MeetingDetailModal({ id, isAdmin, onClose, onEdit, onDeleted }) {
+  const [m, setM] = useState(null);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try { setM(await api.getMeeting(id)); } catch (err) { setError(err.message); }
+    })();
+  }, [id]);
+
+  const viewAttachment = async () => {
+    try { window.open(await fetchMeetingAttachmentBlob(id), '_blank'); }
+    catch (err) { setError(err.message); }
+  };
+
+  const remove = async () => {
+    if (!window.confirm('Delete these meeting minutes permanently?')) return;
+    setBusy(true);
+    try { await api.deleteMeeting(id); onDeleted(); }
+    catch (err) { setError(err.message); setBusy(false); }
+  };
+
+  const present = m?.attendance?.filter((a) => a.status === 'present') || [];
+  const absent = m?.attendance?.filter((a) => a.status === 'absent') || [];
+
+  return (
+    <div className="modal-overlay">
+      <div className="crop-modal" style={{ maxWidth: 640 }}>
+        <div className="crop-head">
+          <h3>Meeting Minutes</h3>
+          {m && <p>{m.committee_level}{m.local_body ? ` — ${m.local_body}` : ''} · {m.wing}</p>}
+        </div>
+        <div style={{ padding: '16px 20px', maxHeight: '68vh', overflowY: 'auto' }}>
+          {error && <div className="alert error">{error}</div>}
+          {!m ? <div className="empty-note"><span className="spinner lg" /></div> : (
+            <>
+              <div className="grid2" style={{ marginBottom: 14 }}>
+                <div className="review-row"><div className="k">Date</div><div className="v">{formatDate(m.meeting_date, { day: 'numeric', month: 'long', year: 'numeric' })}</div></div>
+                {m.meeting_time && <div className="review-row"><div className="k">Time</div><div className="v">{m.meeting_time}</div></div>}
+                {m.venue && <div className="review-row"><div className="k">Venue</div><div className="v">{m.venue}</div></div>}
+              </div>
+              {MEETING_TEXT_FIELDS.map(([key, label]) => m[key] && (
+                <div key={key} style={{ marginBottom: 14 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--blue-800)', marginBottom: 4 }}>{label}</div>
+                  <div style={{ fontSize: 14, whiteSpace: 'pre-line' }}>{m[key]}</div>
+                </div>
+              ))}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--blue-800)', marginBottom: 6 }}>
+                  Participated ({present.length}) · Absent ({absent.length})
+                </div>
+                {present.length === 0 && absent.length === 0 ? <div className="hint">No attendance recorded.</div> : (
+                  <div className="mg-pills" style={{ justifyContent: 'flex-start', flexWrap: 'wrap' }}>
+                    {present.map((a) => <span key={a.application_id} className="pill green">{a.name}</span>)}
+                    {absent.map((a) => <span key={a.application_id} className="pill red">{a.name}</span>)}
+                  </div>
+                )}
+              </div>
+              <div className="grid2" style={{ marginBottom: 14 }}>
+                {m.prepared_by && <div className="review-row"><div className="k">Prepared By</div><div className="v">{m.prepared_by}</div></div>}
+                {m.approved_by && <div className="review-row"><div className="k">Approved By</div><div className="v">{m.approved_by}</div></div>}
+              </div>
+              {m.attachment_file && (
+                <button className="btn btn-outline btn-sm" onClick={viewAttachment}>📄 View Attachment</button>
+              )}
+            </>
+          )}
+        </div>
+        <div className="crop-actions">
+          {isAdmin && m && (
+            <>
+              <button className="btn btn-outline btn-sm" style={{ marginRight: 'auto' }} onClick={remove} disabled={busy}>🗑 Delete</button>
+              <button className="btn btn-outline btn-sm" onClick={() => onEdit(m)}>✏️ Edit</button>
+            </>
+          )}
+          <button className="btn btn-primary btn-sm" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MeetingCard({ m, onOpen }) {
+  return (
+    <div className="member-card" style={{ textAlign: 'left', alignItems: 'flex-start', cursor: 'pointer' }} onClick={() => onOpen(m.id)}>
+      <div style={{ fontWeight: 700, color: 'var(--blue-800)', fontSize: 13 }}>
+        {formatDate(m.meeting_date, { day: 'numeric', month: 'short', year: 'numeric' })}
+      </div>
+      <div className="mg-name" style={{ marginTop: 6 }}>{m.committee_level}{m.local_body ? ` — ${m.local_body}` : ''}</div>
+      <div className="mg-meta">{m.wing}</div>
+      {m.agenda && <div className="mg-meta" style={{ marginTop: 6, WebkitLineClamp: 2, display: '-webkit-box', WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{m.agenda}</div>}
+      <div className="mg-pills" style={{ justifyContent: 'flex-start', marginTop: 10 }}>
+        <span className="pill green">{m.present} present</span>
+        <span className="pill red">{m.absent} absent</span>
+      </div>
+    </div>
+  );
+}
+
+function MeetingsTab({ isAdmin, options, panchayaths }) {
+  const [rows, setRows] = useState(null);
+  const [search, setSearch] = useState('');
+  const [levelFilter, setLevelFilter] = useState('');
+  const [wingFilter, setWingFilter] = useState('');
+  const [error, setError] = useState(null);
+  const [formFor, setFormFor] = useState(null); // null closed, {} new, {...meeting} edit
+  const [detailId, setDetailId] = useState(null);
+
+  const load = async () => {
+    setError(null);
+    try {
+      setRows(await api.listMeetings({
+        ...(search ? { search } : {}),
+        ...(levelFilter ? { committee_level: levelFilter } : {}),
+        ...(wingFilter ? { wing: wingFilter } : {}),
+      }));
+    } catch (err) { setError(err.message); }
+  };
+  useEffect(() => { load(); }, [levelFilter, wingFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <>
+      {error && <div className="alert error">{error}</div>}
+      <div className="toolbar" style={{ flexWrap: 'wrap' }}>
+        <input placeholder="Search agenda or venue…" value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && load()} />
+        <select value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)}>
+          <option value="">All Levels</option>
+          {options.levels.map((l) => <option key={l} value={l}>{l}</option>)}
+        </select>
+        <select value={wingFilter} onChange={(e) => setWingFilter(e.target.value)}>
+          <option value="">All Wings</option>
+          {options.wings.map((w) => <option key={w} value={w}>{w}</option>)}
+        </select>
+        <button className="btn btn-primary btn-sm" onClick={load}>Search</button>
+        <span style={{ flex: 1 }} />
+        {isAdmin && <button className="btn btn-primary btn-sm" onClick={() => setFormFor({})}>+ New Meeting</button>}
+      </div>
+
+      {!rows ? (
+        <div className="empty-note"><span className="spinner lg" /></div>
+      ) : rows.length === 0 ? (
+        <div className="empty-note">No meeting minutes recorded yet{isAdmin ? ' — click "+ New Meeting" to add one.' : '.'}</div>
+      ) : (
+        <div className="member-grid">
+          {rows.map((m) => <MeetingCard key={m.id} m={m} onOpen={setDetailId} />)}
+        </div>
+      )}
+
+      {formFor && (
+        <MeetingFormModal
+          meeting={formFor.id ? formFor : null}
+          options={options}
+          panchayaths={panchayaths}
+          onClose={() => setFormFor(null)}
+          onSaved={() => { setFormFor(null); load(); }}
+        />
+      )}
+      {detailId && (
+        <MeetingDetailModal
+          id={detailId}
+          isAdmin={isAdmin}
+          onClose={() => setDetailId(null)}
+          onEdit={(m) => { setDetailId(null); setFormFor(m); }}
+          onDeleted={() => { setDetailId(null); load(); }}
+        />
+      )}
+    </>
+  );
+}
+
 export default function CommitteePage() {
+  const { session } = useOutletContext();
+  const isAdmin = session?.role === 'admin';
   const [tab, setTab] = useState('assignments');
   const [options, setOptions] = useState(null);
   const [panchayaths, setPanchayaths] = useState([]);
@@ -392,13 +757,16 @@ export default function CommitteePage() {
       <PageHead title="Committee & Team" sub="Assign members to committee levels, wings and designations." />
       <div className="tab-row">
         <button className={`tab ${tab === 'assignments' ? 'active' : ''}`} onClick={() => setTab('assignments')}>Assignments</button>
-        <button className={`tab ${tab === 'options' ? 'active' : ''}`} onClick={() => setTab('options')}>Manage Options</button>
+        <button className={`tab ${tab === 'meetings' ? 'active' : ''}`} onClick={() => setTab('meetings')}>Minutes of Meeting</button>
+        {isAdmin && <button className={`tab ${tab === 'options' ? 'active' : ''}`} onClick={() => setTab('options')}>Manage Options</button>}
       </div>
       {error && <div className="alert error">{error}</div>}
       {!options ? (
         <div className="empty-note"><span className="spinner lg" /></div>
       ) : tab === 'assignments' ? (
         <AssignmentsTab options={options} panchayaths={panchayaths} />
+      ) : tab === 'meetings' ? (
+        <MeetingsTab isAdmin={isAdmin} options={options} panchayaths={panchayaths} />
       ) : (
         <OptionsTab options={options} onChanged={loadOptions} />
       )}
