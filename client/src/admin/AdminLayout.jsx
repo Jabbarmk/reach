@@ -10,6 +10,7 @@ const NAV = [
   { to: '/admin/payments', label: 'Payments', icon: '₹', screen: 'payments' },
   { to: '/admin/receipts', label: 'Receipts', icon: '🧾', screen: 'payments' },
   { to: '/admin/accounts', label: 'Accounts', icon: '📒', screen: 'ledger' },
+  { to: '/admin/committee', label: 'Committee & Team', icon: '🏛', screen: 'committee' },
   { to: '/admin/form-builder', label: 'Form Builder', icon: '🛠', screen: 'form' },
   { to: '/admin/users', label: 'Users', icon: '🧑‍💼', screen: 'users' },
   { to: '/admin/settings', label: 'Settings', icon: '⚙', screen: 'settings' },

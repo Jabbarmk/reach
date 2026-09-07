@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { pool } from '../db.js';
 
-export const ALL_SCREENS = ['overview', 'members', 'approvals', 'payments', 'events', 'settings', 'users', 'form', 'ledger'];
+export const ALL_SCREENS = ['overview', 'members', 'approvals', 'payments', 'events', 'settings', 'users', 'form', 'ledger', 'committee'];
 
 // In-memory cache of roles.name -> { label, screens }. Roles rarely change, so we cache them
 // instead of hitting the DB on every request; refreshed on startup and whenever a role is created.

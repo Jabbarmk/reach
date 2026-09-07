@@ -13,6 +13,7 @@ import AccountsPage from './admin/AccountsPage.jsx';
 import UsersPage from './admin/UsersPage.jsx';
 import SettingsPage from './admin/SettingsPage.jsx';
 import FormBuilder from './admin/FormBuilder.jsx';
+import CommitteePage from './admin/CommitteePage.jsx';
 
 function PublicHeader() {
   const { pathname } = useLocation();
@@ -57,6 +58,9 @@ export default function App() {
           </Route>
           <Route element={<ScreenGuard screen="ledger" />}>
             <Route path="accounts" element={<AccountsPage />} />
+          </Route>
+          <Route element={<ScreenGuard screen="committee" />}>
+            <Route path="committee" element={<CommitteePage />} />
           </Route>
           <Route element={<ScreenGuard screen="events" />}>
             <Route path="news" element={<NewsPage />} />

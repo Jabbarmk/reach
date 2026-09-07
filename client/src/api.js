@@ -57,6 +57,13 @@ export const api = {
   updateLedgerEntry: (id, e) => request(`/api/admin/ledger/entries/${id}`, { method: 'PUT', json: e }),
   deleteLedgerEntry: (id) => request(`/api/admin/ledger/entries/${id}`, { method: 'DELETE' }),
   ledgerSummary: (params = {}) => request(`/api/admin/ledger/reports/summary?${new URLSearchParams(params)}`),
+  // Committee & Team
+  committeeOptions: () => request('/api/admin/committee/options'),
+  saveCommitteeOptions: (list, items) => request(`/api/admin/committee/options/${list}`, { method: 'PUT', json: { items } }),
+  listCommitteeAssignments: (params = {}) => request(`/api/admin/committee/assignments?${new URLSearchParams(params)}`),
+  createCommitteeAssignment: (a) => request('/api/admin/committee/assignments', { method: 'POST', json: a }),
+  updateCommitteeAssignment: (id, a) => request(`/api/admin/committee/assignments/${id}`, { method: 'PUT', json: a }),
+  deleteCommitteeAssignment: (id) => request(`/api/admin/committee/assignments/${id}`, { method: 'DELETE' }),
   // Receipts
   listReceipts: (params = {}) => request(`/api/admin/receipts?${new URLSearchParams(params)}`),
   receiptUrl: (paymentId) => `/api/admin/receipts/${paymentId}/pdf`,
