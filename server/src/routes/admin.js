@@ -69,6 +69,19 @@ router.get('/applications', requireScreen('members'), async (req, res, next) => 
   } catch (e) { next(e); }
 });
 
+// Readable by anyone with Members access (not gated to 'settings', unlike the admin-only
+// write side in routes/settings.js), so every staff role sees the org-wide default view.
+router.get('/members/default-view', requireScreen('members'), async (req, res, next) => {
+  try {
+    const [rows] = await pool.query("SELECT value FROM settings WHERE name = 'members_default_view'");
+    let view = 'grid';
+    if (rows.length) {
+      try { view = JSON.parse(rows[0].value).view === 'table' ? 'table' : 'grid'; } catch { /* keep default */ }
+    }
+    res.json({ view });
+  } catch (e) { next(e); }
+});
+
 router.get('/applications/stats', requireScreen('overview'), async (req, res, next) => {
   try {
     const [rows] = await pool.query('SELECT status, COUNT(*) AS count FROM applications WHERE deleted_at IS NULL GROUP BY status');

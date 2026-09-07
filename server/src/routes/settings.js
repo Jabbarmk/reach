@@ -185,6 +185,19 @@ router.put('/membership-id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+/* ===== Members page default view ===== */
+router.get('/members-default-view', async (req, res, next) => {
+  try { res.json(await getSetting('members_default_view', { view: 'grid' })); } catch (e) { next(e); }
+});
+
+router.put('/members-default-view', async (req, res, next) => {
+  try {
+    const cfg = { view: req.body?.view === 'table' ? 'table' : 'grid' };
+    await putSetting('members_default_view', cfg);
+    res.json(cfg);
+  } catch (e) { next(e); }
+});
+
 /* ===== Application reference number format ===== */
 router.get('/reference-format', async (req, res, next) => {
   try { res.json(await getSetting('reference_format', REF_FORMAT_DEFAULTS)); } catch (e) { next(e); }

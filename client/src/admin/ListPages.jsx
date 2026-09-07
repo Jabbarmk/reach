@@ -273,10 +273,26 @@ export function MembersPage() {
   const ctl = useApps('All', tab === 'deleted' ? { deleted: '1' } : {});
   const [editId, setEditId] = useState(null);
   const [actionError, setActionError] = useState(null);
+  // Captured synchronously on first render, before usePersisted's own effect below has a
+  // chance to write the 'grid' fallback into localStorage — that write would otherwise make
+  // this always look "already set" by the time the effect further down checks it.
+  const hadNoStoredView = useRef((() => { try { return !localStorage.getItem('reach_members_view'); } catch { return false; } })());
   const [view, setView] = usePersisted('reach_members_view', 'grid');
   const [cardSize, setCardSize] = usePersisted('reach_members_card_size', 'default');
   const [gridFields, setGridFields] = usePersistedFields('reach_members_grid_fields');
   const [photoUrls, setPhotoUrls] = useState({});
+
+  // Only adopt the admin-configured default view when this browser has never had its own
+  // preference saved — once someone picks Grid/Table here, that choice always wins.
+  useEffect(() => {
+    if (!hadNoStoredView.current) return;
+    (async () => {
+      try {
+        const { view: defaultView } = await api.getMembersDefaultView();
+        if (hadNoStoredView.current) setView(defaultView);
+      } catch { /* keep the built-in default */ }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const run = async (fn) => {
     setActionError(null);

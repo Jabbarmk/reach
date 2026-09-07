@@ -570,6 +570,58 @@ function DeclarationsCard() {
   );
 }
 
+function MembersDefaultViewCard() {
+  const [cfg, setCfg] = useState(null);
+  const [error, setError] = useState(null);
+  const [saved, setSaved] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try { setCfg(await api.getMembersDefaultViewSetting()); } catch (err) { setError(err.message); }
+    })();
+  }, []);
+
+  const set = (view) => { setCfg({ view }); setSaved(false); };
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try { setCfg(await api.saveMembersDefaultViewSetting(cfg)); setSaved(true); }
+    catch (err) { setError(err.message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <h2 style={{ fontSize: 17, marginBottom: 4 }}>Members Page Default View</h2>
+      <p className="sub">Which layout the Members page opens with, for anyone who hasn't switched it themselves yet.</p>
+      {error && <div className="alert error">{error}</div>}
+      {saved && <div className="alert info">✓ Default view saved.</div>}
+      {!cfg ? <div className="empty-note"><span className="spinner lg" /></div> : (
+        <>
+          <div className="choice-grid" style={{ marginBottom: 16 }}>
+            <button type="button" className={`choice-card ${cfg.view === 'grid' ? 'selected' : ''}`} onClick={() => set('grid')}>
+              <div className="emoji">▦</div>
+              <h3>Grid View</h3>
+              <p>Photo cards, one per member</p>
+            </button>
+            <button type="button" className={`choice-card ${cfg.view === 'table' ? 'selected' : ''}`} onClick={() => set('table')}>
+              <div className="emoji">☰</div>
+              <h3>Table View</h3>
+              <p>Compact rows with sortable columns</p>
+            </button>
+          </div>
+          <button className="btn btn-primary" onClick={save} disabled={busy}>
+            {busy ? 'Saving…' : 'Save Default View'}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function IdFormatCard() {
   const [cfg, setCfg] = useState(null);
   const [error, setError] = useState(null);
@@ -901,6 +953,7 @@ export default function SettingsPage() {
       </div>
 
       <RegistrationCard />
+      <MembersDefaultViewCard />
       <DeclarationsCard />
       <LogoCard />
       <HomeContentCard />
