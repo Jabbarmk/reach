@@ -32,7 +32,7 @@ export function AppsTable({ rows, emptyText = 'No applications found.', renderAc
           <tbody>
             {rows?.map((r) => (
               <tr key={r.id} onClick={() => navigate(`/admin/applications/${r.id}`)}>
-                <td style={{ fontWeight: 700, color: 'var(--blue-800)' }}>{r.membership_id || r.reference_no}</td>
+                <td style={{ fontWeight: 700, color: 'var(--blue-800)', fontSize: 12 }}>{r.membership_id || r.reference_no}</td>
                 <td>{r.name}</td>
                 {fields.place && <td>{r.place}</td>}
                 {fields.plan && <td>{r.membership_type === 'lifetime' ? 'Lifetime ₹2,000' : 'Two-Year ₹300'}</td>}
