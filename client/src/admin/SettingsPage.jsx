@@ -302,7 +302,7 @@ function MemberCountrySearch({ picked, onPick, excludeCodes }) {
 
 function MemberCountriesCard() {
   const [countries, setCountries] = useState(null);
-  const [draft, setDraft] = useState({ picked: null, members: '' });
+  const [draft, setDraft] = useState({ picked: null });
   const [error, setError] = useState(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -327,9 +327,9 @@ function MemberCountriesCard() {
     if (!draft.picked) { setError('Search for and select a country first.'); return; }
     if (countries.some((c) => c.code === draft.picked.code)) { setError('That country is already in the list.'); return; }
     setCountries((rows) => [...rows, {
-      code: draft.picked.code, name: draft.picked.name, members: Number(draft.members) || 0, visible: true, show_count: true,
+      code: draft.picked.code, name: draft.picked.name, members: 0, visible: true, show_count: true, curated: true,
     }]);
-    setDraft({ picked: null, members: '' });
+    setDraft({ picked: null });
     setSaved(false);
   };
 
@@ -350,7 +350,12 @@ function MemberCountriesCard() {
   return (
     <div className="card" style={{ marginBottom: 20 }}>
       <h2 style={{ fontSize: 17, marginBottom: 4 }}>Member Countries (Home Page)</h2>
-      <p className="sub">Countries shown in the "Our Members Country" sliding marquee on the home page. Hide or show any country, hide or show its member count, or add a new one.</p>
+      <p className="sub">
+        Countries shown in the "Our Members Country" sliding marquee on the home page. Member counts are live —
+        computed from actual registered members, not editable. Countries with registered members appear here
+        automatically (marked "Auto"); use the Visible toggle to hide one rather than removing it, since a
+        country with real members reappears on its own.
+      </p>
       {error && <div className="alert error">{error}</div>}
       {saved && <div className="alert info">✓ Member countries saved and live.</div>}
       {!countries ? <div className="empty-note"><span className="spinner lg" /></div> : (
@@ -385,10 +390,9 @@ function MemberCountriesCard() {
                       <td><img src={`https://flagcdn.com/w80/${row.code}.png`} alt={row.code} style={{ width: 34, height: 22, objectFit: 'cover', borderRadius: 3, border: '1px solid var(--line)' }} /></td>
                       <td>
                         <input type="text" value={row.name} onChange={(e) => update(i, 'name', e.target.value)} style={{ width: '100%', padding: '6px 9px', border: '1.5px solid var(--line)', borderRadius: 8 }} />
+                        {row.curated === false && <span className="pill blue" style={{ marginLeft: 8 }} title="Has real members but isn't saved into this list yet">Auto</span>}
                       </td>
-                      <td>
-                        <input type="number" min="0" value={row.members} onChange={(e) => update(i, 'members', Number(e.target.value) || 0)} style={{ width: '100%', padding: '6px 9px', border: '1.5px solid var(--line)', borderRadius: 8 }} />
-                      </td>
+                      <td style={{ fontWeight: 700, color: 'var(--blue-800)' }}>{row.members.toLocaleString('en-IN')}</td>
                       <td>
                         <button type="button" className={`switch ${row.visible ? 'on' : ''}`} onClick={() => update(i, 'visible', !row.visible)} aria-label="Toggle visible">
                           <span className="knob" />
@@ -418,10 +422,6 @@ function MemberCountriesCard() {
                 onPick={(c) => setDraft({ ...draft, picked: c })}
                 excludeCodes={countries.map((c) => c.code)}
               />
-              <div className="field">
-                <label>Member count</label>
-                <input type="number" min="0" value={draft.members} onChange={(e) => setDraft({ ...draft, members: e.target.value })} />
-              </div>
             </div>
             {draft.picked && (
               <div className="hint" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>

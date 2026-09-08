@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import { pool } from '../db.js';
 import { sendMail, templates } from '../mailer.js';
 import { mergeHomeContent } from '../homeContent.js';
-import { mergeMemberCountries } from '../memberCountries.js';
+import { mergeMemberCountries, attachLiveCounts } from '../memberCountries.js';
 import { getLogoPath } from '../branding.js';
 import { NEWS_DIR } from './news.js';
 
@@ -63,7 +63,7 @@ router.get('/member-countries', async (req, res, next) => {
     const [rows] = await pool.query("SELECT value FROM settings WHERE name = 'member_countries'");
     let stored = null;
     if (rows.length) { try { stored = JSON.parse(rows[0].value); } catch { stored = null; } }
-    res.json(mergeMemberCountries(stored));
+    res.json(await attachLiveCounts(mergeMemberCountries(stored)));
   } catch (e) { next(e); }
 });
 
