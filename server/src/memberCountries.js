@@ -45,9 +45,13 @@ export function mergeMemberCountries(stored) {
 // their home country, not somewhere they registered as "working abroad"), so they're
 // bucketed as 'India' — matching the dashboard's "Members by Country" widget convention.
 async function realCountryCounts() {
+  // Group by the expression itself, not an alias — `applications` already has a real
+  // `name` column (the applicant's name), so `GROUP BY name` silently grouped by THAT
+  // instead of this computed country, splintering every applicant into their own group.
   const [rows] = await pool.query(
     `SELECT COALESCE(NULLIF(working_country, ''), 'India') AS name, COUNT(*) AS count
-     FROM applications WHERE deleted_at IS NULL GROUP BY name`
+     FROM applications WHERE deleted_at IS NULL
+     GROUP BY COALESCE(NULLIF(working_country, ''), 'India')`
   );
   const map = new Map();
   for (const r of rows) map.set(r.name.toLowerCase(), { name: r.name, count: Number(r.count) });
