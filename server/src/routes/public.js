@@ -251,6 +251,15 @@ router.post(
       reqText('whatsapp_number', d.whatsapp_number, 'WhatsApp number');
       if (need('email') && !d.email) errors.push(`${label('email', 'E-mail')} is required`);
       if (d.email && !EMAIL_RE.test(d.email)) errors.push('E-mail is invalid');
+      else if (d.email) {
+        // Rejected applications don't block a retry — anything else (pending, active,
+        // approved, etc.) with the same e-mail does.
+        const [existing] = await pool.query(
+          "SELECT id FROM applications WHERE email = ? AND deleted_at IS NULL AND status != 'Rejected' LIMIT 1",
+          [d.email.trim()]
+        );
+        if (existing.length) errors.push('This e-mail is already registered. Please use a different e-mail or contact admin.');
+      }
       reqText('current_job', d.current_job, 'Current job');
       if (need('years_abroad') && d.years_abroad === undefined) errors.push(`${label('years_abroad', 'Total years abroad')} is required`);
       if (d.years_abroad !== undefined && d.years_abroad !== '' && Number(d.years_abroad) < 0) errors.push('Total years abroad must be 0 or more');
