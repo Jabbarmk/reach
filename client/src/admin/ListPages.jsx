@@ -102,7 +102,9 @@ const EDIT_TEXT_FIELDS = [
 
 function MemberEditModal({ id, onClose, onSaved }) {
   const [app, setApp] = useState(null);
+  const [original, setOriginal] = useState(null);
   const [options, setOptions] = useState({});
+  const [plans, setPlans] = useState([]);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -111,7 +113,9 @@ function MemberEditModal({ id, onClose, onSaved }) {
       try {
         const [detail, cfg] = await Promise.all([api.getApplication(id), api.formConfig()]);
         setApp(detail.application);
+        setOriginal(detail.application);
         setOptions(cfg.options || {});
+        setPlans(cfg.plans || []);
       } catch (err) { setError(err.message); }
     })();
   }, [id]);
@@ -119,8 +123,16 @@ function MemberEditModal({ id, onClose, onSaved }) {
   const set = (k, v) => setApp((p) => ({ ...p, [k]: v }));
 
   const save = async () => {
-    setBusy(true);
     setError(null);
+    if (app.membership_type !== original.membership_type) {
+      const newPlanName = plans.find((p) => p.code === app.membership_type)?.name || app.membership_type;
+      const oldPlanName = plans.find((p) => p.code === original.membership_type)?.name || original.membership_type;
+      const activeWarning = original.membership_id
+        ? ' They are already Active, so their validity dates will be recomputed for the new plan.'
+        : '';
+      if (!window.confirm(`Change ${app.name}'s membership plan from "${oldPlanName}" to "${newPlanName}"?${activeWarning}`)) return;
+    }
+    setBusy(true);
     try {
       const payload = {};
       const keys = [
@@ -130,6 +142,7 @@ function MemberEditModal({ id, onClose, onSaved }) {
         ...(app.is_expat ? ['phone_abroad', 'home_contact_number', 'id_card_number_abroad', 'working_country', 'city'] : ['retired_year', 'phone_india']),
       ];
       keys.forEach((k) => { payload[k] = app[k] ?? ''; });
+      if (app.membership_type !== original.membership_type) payload.membership_type = app.membership_type;
       await api.updateApplication(id, payload);
       onSaved();
     } catch (err) { setError(err.message); setBusy(false); }
@@ -146,6 +159,15 @@ function MemberEditModal({ id, onClose, onSaved }) {
           {error && <div className="alert error">{error}</div>}
           {!app ? <div className="empty-note"><span className="spinner lg" /></div> : (
             <div className="grid2">
+              <div className="field">
+                <label>Membership Plan</label>
+                <select value={app.membership_type ?? ''} onChange={(e) => set('membership_type', e.target.value)}>
+                  {plans.map((p) => <option key={p.code} value={p.code}>{p.name} — ₹{Number(p.fee).toLocaleString('en-IN')}</option>)}
+                </select>
+                {app.membership_type !== original.membership_type && (
+                  <div className="hint" style={{ color: 'var(--orange-500)', marginTop: 4 }}>⚠ Changing this will update their plan on save.</div>
+                )}
+              </div>
               {EDIT_TEXT_FIELDS.map(([key, label]) => (
                 <div className="field" key={key}>
                   <label>{label}</label>

@@ -43,6 +43,18 @@ export default function PaymentModal({ mode, app, payment, onClose, onDone }) {
 
   const amount = amountChoice === 'other' ? customAmount : amountChoice;
 
+  const dedupePlans = [];
+  const seenFees = new Set();
+  for (const p of plans) {
+    if (seenFees.has(Number(p.fee))) continue;
+    seenFees.add(Number(p.fee));
+    dedupePlans.push(p);
+  }
+  // The amount choice matches a specific plan's fee — if it's a different plan than the
+  // member actually registered under, verifying/saving this payment will switch their plan.
+  const selectedPlan = amountChoice !== 'other' ? dedupePlans.find((p) => String(p.fee) === amountChoice) : null;
+  const planMismatch = selectedPlan && app?.membership_type && selectedPlan.code !== app.membership_type;
+
   const buildForm = () => {
     const fd = new FormData();
     fd.append('amount', amount);
@@ -51,6 +63,7 @@ export default function PaymentModal({ mode, app, payment, onClose, onDone }) {
     fd.append('paid_on', paidOn);
     if (note.trim()) fd.append('note', note.trim());
     if (receipt) fd.append('receipt', receipt);
+    if (planMismatch) fd.append('membership_type', selectedPlan.code);
     return fd;
   };
 
@@ -65,6 +78,14 @@ export default function PaymentModal({ mode, app, payment, onClose, onDone }) {
   const submitPayment = async () => {
     setError(null);
     if (!validate()) return;
+    if (planMismatch) {
+      const currentPlanName = plans.find((p) => p.code === app.membership_type)?.name || app.membership_type;
+      const ok = window.confirm(
+        `This amount matches "${selectedPlan.name}", not the registered plan "${currentPlanName}". ` +
+        `Continuing will change ${app?.name || 'this member'}'s membership plan to "${selectedPlan.name}". Continue?`
+      );
+      if (!ok) return;
+    }
     setBusy(true);
     try {
       if (mode === 'edit') {
@@ -77,14 +98,6 @@ export default function PaymentModal({ mode, app, payment, onClose, onDone }) {
       onDone();
     } catch (err) { setError(err.message); setBusy(false); }
   };
-
-  const dedupePlans = [];
-  const seenFees = new Set();
-  for (const p of plans) {
-    if (seenFees.has(Number(p.fee))) continue;
-    seenFees.add(Number(p.fee));
-    dedupePlans.push(p);
-  }
 
   return (
     <div className="modal-overlay">
@@ -112,6 +125,11 @@ export default function PaymentModal({ mode, app, payment, onClose, onDone }) {
                 type="number" min="1" placeholder="Enter amount" value={customAmount}
                 onChange={(e) => setCustomAmount(e.target.value)} style={{ marginTop: 8 }}
               />
+            )}
+            {planMismatch && (
+              <div className="hint" style={{ color: 'var(--orange-500)', marginTop: 6 }}>
+                ⚠ This matches "{selectedPlan.name}" — saving will change {app?.name || 'this member'}'s registered plan to match.
+              </div>
             )}
           </div>
           <div className="grid2">

@@ -217,6 +217,10 @@ router.put('/applications/:id', requireScreen('members'), async (req, res, next)
     const app = rows[0];
     const b = req.body || {};
 
+    if (b.membership_type && b.membership_type !== app.membership_type) {
+      await changeMembershipPlan(pool, app, b.membership_type, req.admin.username);
+    }
+
     const updates = {};
     for (const key of EDITABLE_FIELDS) {
       if (b[key] === undefined) continue;
@@ -232,14 +236,16 @@ router.put('/applications/:id', requireScreen('members'), async (req, res, next)
     if (updates.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updates.email)) {
       return res.status(400).json({ error: 'E-mail is invalid' });
     }
-    if (!Object.keys(updates).length) return res.status(400).json({ error: 'Nothing to update' });
+    if (!Object.keys(updates).length && !b.membership_type) return res.status(400).json({ error: 'Nothing to update' });
 
-    const changed = Object.keys(updates).filter((k) => String(updates[k] ?? '') !== String(app[k] ?? ''));
-    const keys = Object.keys(updates);
-    await pool.query(`UPDATE applications SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`, [...Object.values(updates), app.id]);
-    if (changed.length) {
-      await pool.query('INSERT INTO status_history (application_id, action, detail, actor) VALUES (?,?,?,?)',
-        [app.id, 'Edited', `Updated: ${changed.join(', ')}`, req.admin.username]);
+    if (Object.keys(updates).length) {
+      const changed = Object.keys(updates).filter((k) => String(updates[k] ?? '') !== String(app[k] ?? ''));
+      const keys = Object.keys(updates);
+      await pool.query(`UPDATE applications SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`, [...Object.values(updates), app.id]);
+      if (changed.length) {
+        await pool.query('INSERT INTO status_history (application_id, action, detail, actor) VALUES (?,?,?,?)',
+          [app.id, 'Edited', `Updated: ${changed.join(', ')}`, req.admin.username]);
+      }
     }
     const [fresh] = await pool.query('SELECT * FROM applications WHERE id = ?', [app.id]);
     const result = fresh[0];
@@ -370,6 +376,7 @@ router.post(
   async (req, res, next) => {
     const { application_id, amount, method, paid_on, note } = req.body || {};
     const collected_by = req.adminUser.role === 'admin' ? req.body?.collected_by : req.admin.username;
+    const membershipTypeChange = req.adminUser.role === 'admin' ? req.body?.membership_type : undefined;
     const amt = Number(amount);
     if (!application_id || !(amt > 0)) return res.status(400).json({ error: 'A valid amount is required' });
     if (!method?.trim()) return res.status(400).json({ error: 'Payment method is required' });
@@ -384,6 +391,10 @@ router.post(
       const app = apps[0];
       const [existing] = await conn.query('SELECT id FROM payments WHERE application_id = ?', [app.id]);
       if (existing.length) { await conn.rollback(); return res.status(400).json({ error: 'A payment is already recorded for this member — edit it instead' }); }
+
+      if (membershipTypeChange && membershipTypeChange !== app.membership_type) {
+        await changeMembershipPlan(conn, app, membershipTypeChange, req.admin.username);
+      }
 
       const receiptDocId = req.file ? await insertReceiptDoc(conn, app.id, req.file) : null;
       const receiptNumber = await generateReceiptNumber(conn);
@@ -436,7 +447,7 @@ router.put('/payments/:id', receiptUpload.single('receipt'), requireScreen('paym
   const conn = await pool.getConnection();
   try {
     if (req.adminUser.role !== 'admin') { conn.release(); return res.status(403).json({ error: 'Only administrators can edit payments' }); }
-    const { amount, method, paid_on, note, collected_by } = req.body || {};
+    const { amount, method, paid_on, note, collected_by, membership_type } = req.body || {};
     await conn.beginTransaction();
     const [rows] = await conn.query('SELECT * FROM payments WHERE id = ? FOR UPDATE', [req.params.id]);
     if (!rows.length) { await conn.rollback(); return res.status(404).json({ error: 'Payment not found' }); }
@@ -444,6 +455,13 @@ router.put('/payments/:id', receiptUpload.single('receipt'), requireScreen('paym
     const amt = amount !== undefined ? Number(amount) : Number(p.amount);
     if (!(amt > 0)) { await conn.rollback(); return res.status(400).json({ error: 'A valid amount is required' }); }
     if (collected_by !== undefined && !collected_by.trim()) { await conn.rollback(); return res.status(400).json({ error: 'Cash Collected By is required' }); }
+
+    if (membership_type) {
+      const [apps] = await conn.query('SELECT * FROM applications WHERE id = ? FOR UPDATE', [p.application_id]);
+      if (apps.length && membership_type !== apps[0].membership_type) {
+        await changeMembershipPlan(conn, apps[0], membership_type, req.admin.username);
+      }
+    }
 
     let receiptDocId = p.receipt_doc_id;
     if (req.file) {
@@ -583,6 +601,35 @@ async function generateMembershipId(conn, app) {
   throw new Error('Could not generate a unique membership ID');
 }
 
+function computeValidity(plan) {
+  if (plan && plan.validity_type === 'range') {
+    return { validity_start: plan.validity_start, validity_end: plan.validity_end };
+  }
+  return { validity_start: new Date().toISOString().slice(0, 10), validity_end: null };
+}
+
+// Switches an application to a different membership plan (e.g. the admin recorded a
+// payment matching a different tier than what was registered, or corrected it via the
+// member-edit form). Updates the fee to match, and — only if the member has already been
+// issued a membership ID (i.e. already Active) — recomputes their validity window too,
+// since that's normally a one-time computation done at ID-card-generation time.
+async function changeMembershipPlan(conn, app, newPlanCode, actor) {
+  const [[newPlan]] = await conn.query('SELECT * FROM membership_plans WHERE code = ? AND is_active = 1', [newPlanCode]);
+  if (!newPlan) throw Object.assign(new Error('Unknown membership plan'), { status: 400 });
+
+  const updates = { membership_type: newPlan.code, membership_fee: newPlan.fee };
+  if (app.membership_id) Object.assign(updates, computeValidity(newPlan));
+
+  const keys = Object.keys(updates);
+  await conn.query(`UPDATE applications SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`, [...Object.values(updates), app.id]);
+  await conn.query('INSERT INTO status_history (application_id, action, detail, actor) VALUES (?,?,?,?)', [
+    app.id, 'Plan Changed',
+    `Changed from ${app.membership_type} to ${newPlan.code}${app.membership_id ? ' (validity recomputed)' : ''}`,
+    actor,
+  ]);
+  return updates;
+}
+
 // Society-wide receipt counter, same bootstrap pattern as nextMemberSeq.
 async function nextReceiptSeq(conn) {
   const [rows] = await conn.query("SELECT value FROM settings WHERE name = 'receipt_seq' FOR UPDATE");
@@ -661,15 +708,7 @@ router.post('/applications/:id/action', async (req, res, next) => {
             return res.status(400).json({ error: 'Membership ID has already been generated for this member' });
           }
           const membershipId = await generateMembershipId(conn, app);
-          let validityStart, validityEnd;
-          if (plan && plan.validity_type === 'range') {
-            validityStart = plan.validity_start;
-            validityEnd = plan.validity_end;
-          } else {
-            validityStart = new Date().toISOString().slice(0, 10);
-            validityEnd = null;
-          }
-          update = { status: 'Active', membership_id: membershipId, validity_start: validityStart, validity_end: validityEnd };
+          update = { status: 'Active', membership_id: membershipId, ...computeValidity(plan) };
           historyAction = 'ID Card Generated';
           detail = `Membership ID ${membershipId} generated. Status: Active.`;
           mailKey = 'approved';
