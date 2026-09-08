@@ -14,20 +14,23 @@ function useApps(defaultStatus, extraParams = {}) {
   const [rows, setRows] = useState(null);
   const [status, setStatus] = useState(urlStatus || defaultStatus);
   const [search, setSearch] = useState(urlSearch);
+  const [panchayath, setPanchayath] = useState('');
+  const [country, setCountry] = useState('');
   const [error, setError] = useState(null);
   const navigate = useNavigate();
   const extraKey = JSON.stringify(extraParams);
 
-  const load = async (s = status, q = search) => {
+  const load = async (s = status, q = search, p = panchayath, c = country) => {
     setRows(null);
     setError(null);
+    const locationParams = { ...(p ? { panchayath: p } : {}), ...(c ? { working_country: c } : {}) };
     try {
       if (Array.isArray(s)) {
-        const lists = await Promise.all(s.map((st) => api.listApplications({ status: st, search: q, ...extraParams })));
+        const lists = await Promise.all(s.map((st) => api.listApplications({ status: st, search: q, ...locationParams, ...extraParams })));
         const merged = lists.flat().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         setRows(merged);
       } else {
-        setRows(await api.listApplications({ status: s, search: q, ...extraParams }));
+        setRows(await api.listApplications({ status: s, search: q, ...locationParams, ...extraParams }));
       }
     } catch (err) {
       if (err.status === 401) { setToken(null); navigate('/admin/login'); return; }
@@ -37,7 +40,7 @@ function useApps(defaultStatus, extraParams = {}) {
 
   useEffect(() => { setSearch(urlSearch); load(status, urlSearch); }, [urlSearch, status, extraKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { rows, status, setStatus, search, setSearch, error, load };
+  return { rows, status, setStatus, search, setSearch, panchayath, setPanchayath, country, setCountry, error, load };
 }
 
 function PageHead({ title, sub, children }) {
@@ -52,21 +55,40 @@ function PageHead({ title, sub, children }) {
   );
 }
 
-function Toolbar({ ctl, withStatus }) {
+function Toolbar({ ctl, withStatus, locationOptions }) {
+  const doLoad = () => ctl.load(ctl.status, ctl.search, ctl.panchayath, ctl.country);
+  const clearLocation = () => {
+    ctl.setPanchayath('');
+    ctl.setCountry('');
+    ctl.load(ctl.status, ctl.search, '', '');
+  };
   return (
-    <div className="toolbar">
+    <div className="toolbar" style={{ flexWrap: 'wrap' }}>
       <input
         placeholder="Search by name, reference no or membership ID…"
         value={ctl.search}
         onChange={(e) => ctl.setSearch(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && ctl.load(ctl.status, ctl.search)}
+        onKeyDown={(e) => e.key === 'Enter' && doLoad()}
       />
       {withStatus && (
         <select value={ctl.status} onChange={(e) => ctl.setStatus(e.target.value)}>
           {STATUSES.map((s) => <option key={s}>{s}</option>)}
         </select>
       )}
-      <button className="btn btn-primary btn-sm" onClick={() => ctl.load(ctl.status, ctl.search)}>Search</button>
+      {locationOptions && (
+        <>
+          <select value={ctl.panchayath} onChange={(e) => { ctl.setPanchayath(e.target.value); ctl.load(ctl.status, ctl.search, e.target.value, ctl.country); }}>
+            <option value="">All Panchayaths/Municipalities</option>
+            {locationOptions.panchayath.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <select value={ctl.country} onChange={(e) => { ctl.setCountry(e.target.value); ctl.load(ctl.status, ctl.search, ctl.panchayath, e.target.value); }}>
+            <option value="">All Countries</option>
+            {locationOptions.country.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          {(ctl.panchayath || ctl.country) && <button className="btn btn-ghost btn-sm" onClick={clearLocation}>Clear location filters</button>}
+        </>
+      )}
+      <button className="btn btn-primary btn-sm" onClick={doLoad}>Search</button>
     </div>
   );
 }
@@ -281,6 +303,16 @@ export function MembersPage() {
   const [cardSize, setCardSize] = usePersisted('reach_members_card_size', 'default');
   const [gridFields, setGridFields] = usePersistedFields('reach_members_grid_fields');
   const [photoUrls, setPhotoUrls] = useState({});
+  const [locationOptions, setLocationOptions] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const cfg = await api.formConfig();
+        setLocationOptions({ panchayath: cfg.options?.panchayath || [], country: cfg.options?.country || [] });
+      } catch { /* filters just stay unavailable */ }
+    })();
+  }, []);
 
   // Only adopt the admin-configured default view when this browser has never had its own
   // preference saved — once someone picks Grid/Table here, that choice always wins.
@@ -402,7 +434,7 @@ export function MembersPage() {
 
       {tab === 'members' ? (
         <>
-          <Toolbar ctl={ctl} withStatus />
+          <Toolbar ctl={ctl} withStatus locationOptions={locationOptions} />
           {view === 'table'
             ? <AppsTable rows={ctl.rows} renderActions={isAdmin ? memberActions : undefined} fields={gridFields} />
             : <MemberGrid rows={ctl.rows} size={cardSize} photoUrls={photoUrls} menuItems={isAdmin ? memberMenuItems : undefined} fields={gridFields} />}

@@ -51,17 +51,20 @@ router.use(requireAdmin);
 
 router.get('/applications', requireScreen('members'), async (req, res, next) => {
   try {
-    const { status, search, deleted } = req.query;
+    const { status, search, deleted, panchayath, working_country } = req.query;
     const showDeleted = deleted === '1';
     if (showDeleted && req.adminUser.role !== 'admin') {
       return res.status(403).json({ error: 'Only administrators can view deleted members' });
     }
     let sql = `SELECT a.id, a.reference_no, a.membership_id, a.membership_type, a.membership_fee, a.name, a.place,
-                      a.is_expat, a.status, a.payment_status, a.aadhaar_number, a.created_at, a.deleted_at,
+                      a.panchayath, a.working_country, a.is_expat, a.status, a.payment_status, a.aadhaar_number,
+                      a.created_at, a.deleted_at,
                       (SELECT d.id FROM documents d WHERE d.application_id = a.id AND d.doc_type = 'photo' LIMIT 1) AS photo_doc_id
                FROM applications a WHERE a.deleted_at IS ${showDeleted ? 'NOT NULL' : 'NULL'}`;
     const params = [];
     if (status && status !== 'All') { sql += ' AND status = ?'; params.push(status); }
+    if (panchayath) { sql += ' AND a.panchayath = ?'; params.push(panchayath); }
+    if (working_country) { sql += ' AND a.working_country = ?'; params.push(working_country); }
     if (search) { sql += ' AND (name LIKE ? OR reference_no LIKE ? OR membership_id LIKE ?)'; params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
     sql += ' ORDER BY created_at DESC LIMIT 500';
     const [rows] = await pool.query(sql, params);
