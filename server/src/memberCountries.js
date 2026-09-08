@@ -41,12 +41,13 @@ export function mergeMemberCountries(stored) {
 }
 
 // Real per-country member counts, from applications.working_country (any non-deleted
-// application, regardless of status — matches the dashboard's "Members by Country" widget).
+// application, regardless of status). Non-expat members have no working_country (it's
+// their home country, not somewhere they registered as "working abroad"), so they're
+// bucketed as 'India' — matching the dashboard's "Members by Country" widget convention.
 async function realCountryCounts() {
   const [rows] = await pool.query(
-    `SELECT working_country AS name, COUNT(*) AS count FROM applications
-     WHERE deleted_at IS NULL AND working_country IS NOT NULL AND working_country != ''
-     GROUP BY working_country`
+    `SELECT COALESCE(NULLIF(working_country, ''), 'India') AS name, COUNT(*) AS count
+     FROM applications WHERE deleted_at IS NULL GROUP BY name`
   );
   const map = new Map();
   for (const r of rows) map.set(r.name.toLowerCase(), { name: r.name, count: Number(r.count) });
