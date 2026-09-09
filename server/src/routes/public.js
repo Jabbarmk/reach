@@ -231,8 +231,20 @@ router.post(
         else if (new Date(d.date_of_birth) > new Date()) errors.push('Date of birth cannot be in the future');
       }
 
+      // Duplicate checks share the e-mail rule below: rejected/deleted applications don't block
+      // a retry. Values are compared ignoring spaces, dashes and case so formatting differences
+      // (e.g. "+91 98470 12405" vs "+919847012405") can't slip past.
+      const notBlocking = "deleted_at IS NULL AND status != 'Rejected'";
       const aadhaar = String(d.aadhaar_number || '').trim();
       if (need('aadhaar_number') && !aadhaar) errors.push(`${label('aadhaar_number', 'ID card number')} is required`);
+      const aadhaarKey = aadhaar.replace(/[^0-9A-Za-z]/g, '').toUpperCase();
+      if (aadhaarKey) {
+        const [dup] = await pool.query(
+          `SELECT id FROM applications WHERE UPPER(REGEXP_REPLACE(aadhaar_number, '[^0-9A-Za-z]', '')) = ? AND ${notBlocking} LIMIT 1`,
+          [aadhaarKey]
+        );
+        if (dup.length) errors.push(`This ${label('aadhaar_number', 'ID card number')} is already registered. Please check the number or contact admin.`);
+      }
 
       if (isExpat) {
         reqText('phone_abroad', d.phone_abroad, 'Phone number (abroad)');
@@ -249,6 +261,14 @@ router.post(
       }
 
       reqText('whatsapp_number', d.whatsapp_number, 'WhatsApp number');
+      const whatsappKey = String(d.whatsapp_number || '').replace(/\D/g, '');
+      if (whatsappKey) {
+        const [dup] = await pool.query(
+          `SELECT id FROM applications WHERE REGEXP_REPLACE(whatsapp_number, '[^0-9]', '') = ? AND ${notBlocking} LIMIT 1`,
+          [whatsappKey]
+        );
+        if (dup.length) errors.push('This WhatsApp number is already registered. Please use a different number or contact admin.');
+      }
       if (need('email') && !d.email) errors.push(`${label('email', 'E-mail')} is required`);
       if (d.email && !EMAIL_RE.test(d.email)) errors.push('E-mail is invalid');
       else if (d.email) {
