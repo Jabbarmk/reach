@@ -41,7 +41,6 @@ export default function StepDetails({ data, setField, errors, cfg }) {
                   if (data.whatsapp_same) setField('whatsapp', { ...v });
                 }}
                 error={errors.phone_abroad}
-                excludeDial={['+91']}
               />
             )}
             {vis('whatsapp_number') && (
@@ -151,7 +150,7 @@ export default function StepDetails({ data, setField, errors, cfg }) {
           <PhoneInput
             label={label('emergency_phone', 'Phone Number')} required={req('emergency_phone')} value={data.emergency_phone}
             onChange={(v) => setField('emergency_phone', v)} error={errors.emergency_phone}
-            lockDial={!isExpat} excludeDial={isExpat ? ['+91'] : []}
+            lockDial={!isExpat}
           />
         )}
         {isExpat && vis('home_contact_number') && (
