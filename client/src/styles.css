@@ -1248,6 +1248,46 @@ table.apps tbody tr { cursor: pointer; transition: background .12s; }
 table.apps tbody tr:hover { background: var(--blue-50); }
 .empty-note { padding: 34px; text-align: center; color: var(--muted); }
 
+/* ============ Reports (Dashboard > Reports) ============ */
+.rep-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.rep-actions .spinner { width: 12px; height: 12px; border-width: 2px; margin-right: 4px; }
+.rep-filters {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; align-items: end;
+  background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 16px 18px; margin-bottom: 16px;
+}
+.rep-filter label { display: block; font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 5px; }
+.rep-filter input, .rep-filter select {
+  width: 100%; padding: 9px 11px; border: 1.5px solid var(--line); border-radius: 10px; background: #fff; outline: none; font-size: 13.5px;
+}
+.rep-filter input:focus, .rep-filter select:focus { border-color: var(--blue-600); }
+.rep-filter-actions { display: flex; gap: 8px; align-items: center; }
+.rep-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.rep-meta-text { font-size: 13px; color: var(--muted); font-weight: 600; }
+.rep-grid { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 22px; }
+.rep-grid .ovr-card { padding: 16px 18px; }
+.rep-grid .ovr-top { margin-bottom: 10px; }
+.rep-num { font-size: 24px; }
+.rep-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+@media (max-width: 1000px) { .rep-two-col { grid-template-columns: 1fr; } }
+.rep-bar-card { margin-bottom: 0; }
+.rep-bar-card .ovr-country-list { max-height: none; }
+.rep-bar-row { cursor: pointer; border-radius: 8px; padding: 2px 4px; margin: 0 -4px; }
+.rep-bar-row:hover { background: var(--blue-50); }
+.rep-bar-money { flex: 0 0 84px; text-align: right; font-size: 12px; font-weight: 700; color: var(--green-600); white-space: nowrap; }
+.rep-more { margin-top: 10px; font-size: 12px; color: var(--muted); font-weight: 600; }
+.rep-card-title { padding: 14px 16px 0; font-size: 16px; font-weight: 700; color: var(--blue-900); }
+.rep-note { padding: 10px 16px; font-size: 12.5px; color: var(--muted); background: #fffbeb; border-bottom: 1px solid var(--line); }
+table.apps.rep-table th.r, table.apps.rep-table td.r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.apps.rep-table td.money-in { color: var(--green-600); font-weight: 700; }
+table.apps.rep-table td.money-out { color: var(--orange-500); font-weight: 700; }
+table.apps.rep-table.static { min-width: 0; }
+table.apps.rep-table.static tbody tr { cursor: default; }
+table.apps.rep-table.static tbody tr:hover { background: transparent; }
+table.apps.rep-table tfoot td { padding: 11px 14px; background: var(--blue-50); font-weight: 800; color: var(--blue-900); border-top: 1px solid var(--line); }
+.tab-count { margin-left: 8px; background: rgba(255,255,255,.25); border-radius: 999px; padding: 1px 8px; font-size: 11.5px; }
+.tab:not(.active) .tab-count { background: var(--blue-50); color: var(--blue-800); }
+
 /* ============ Ledger statement (Accounts > Reports) ============ */
 table.apps.statement tbody tr { cursor: default; }
 table.apps.statement td.stmt-credit, table.apps.statement td.stmt-debit {

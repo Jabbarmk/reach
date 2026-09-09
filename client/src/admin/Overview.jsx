@@ -102,7 +102,10 @@ export default function Overview() {
 
       {stats?.byCountry?.length > 0 && (
         <div className="ovr-country-card">
-          <h2>Members by Country</h2>
+          <div className="ovr-recent-head" style={{ marginBottom: 14 }}>
+            <h2 style={{ marginBottom: 0 }}>Members by Country</h2>
+            {session?.screens?.includes('reports') && <Link to="/admin/reports">📊 Full reports →</Link>}
+          </div>
           <div className="ovr-country-list">
             {stats.byCountry.map((c) => (
               <div className="ovr-country-row" key={c.country}>

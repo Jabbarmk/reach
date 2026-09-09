@@ -57,6 +57,9 @@ export const api = {
   updateLedgerEntry: (id, e) => request(`/api/admin/ledger/entries/${id}`, { method: 'PUT', json: e }),
   deleteLedgerEntry: (id) => request(`/api/admin/ledger/entries/${id}`, { method: 'DELETE' }),
   ledgerSummary: (params = {}) => request(`/api/admin/ledger/reports/summary?${new URLSearchParams(params)}`),
+  // Reports
+  registrationReport: (params = {}) => request(`/api/admin/reports/registrations?${new URLSearchParams(params)}`),
+  reportExportUrl: (format, params = {}) => `/api/admin/reports/registrations/export.${format}?${new URLSearchParams(params)}`,
   // Committee & Team
   committeeOptions: () => request('/api/admin/committee/options'),
   saveCommitteeOptions: (list, items) => request(`/api/admin/committee/options/${list}`, { method: 'PUT', json: { items } }),
@@ -153,6 +156,19 @@ export async function fetchMeetingAttachmentBlob(meetingId) {
   const res = await fetch(api.meetingAttachmentUrl(meetingId), { headers: { Authorization: `Bearer ${getToken()}` } });
   if (!res.ok) throw new Error('Could not load attachment');
   return URL.createObjectURL(await res.blob());
+}
+
+// Fetches an authenticated file (report export etc.) and saves it with the given filename.
+export async function downloadAuthedFile(url, filename) {
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${getToken()}` } });
+  if (!res.ok) {
+    let msg = `Download failed (${res.status})`;
+    try { msg = (await res.json()).error || msg; } catch { /* non-json */ }
+    throw new Error(msg);
+  }
+  const blobUrl = URL.createObjectURL(await res.blob());
+  downloadBlob(blobUrl, filename);
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 }
 
 // Fetches an authenticated blob URL and triggers a browser download/save-as with the given filename.
