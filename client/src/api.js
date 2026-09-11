@@ -40,6 +40,7 @@ export const api = {
   restoreApplication: (id) => request(`/api/admin/applications/${id}/restore`, { method: 'POST' }),
   purgeApplication: (id) => request(`/api/admin/applications/${id}/purge`, { method: 'DELETE' }),
   updateApplication: (id, data) => request(`/api/admin/applications/${id}`, { method: 'PUT', json: data }),
+  updateApplicationPhoto: (id, formData) => request(`/api/admin/applications/${id}/photo`, { method: 'PUT', body: formData }),
   // Payments
   paymentsDue: () => request('/api/admin/payments/due'),
   listPayments: (params = {}) => request(`/api/admin/payments?${new URLSearchParams(params)}`),

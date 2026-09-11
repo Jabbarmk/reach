@@ -3,6 +3,7 @@ import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { api, fetchDocBlob, fetchReceiptBlob, downloadBlob, setToken } from '../api.js';
 import MembershipCard from './MembershipCard.jsx';
 import PaymentModal from './PaymentModal.jsx';
+import PhotoUpload from '../components/PhotoUpload.jsx';
 
 const Row = ({ k, v }) => (
   <div className="review-row"><div className="k">{k}</div><div className="v">{v ?? '—'}</div></div>
@@ -17,6 +18,52 @@ const statusPill = (s) => {
 };
 
 const DOC_LABELS = { photo: 'Member Photo', aadhaar: 'ID Card', id_card_abroad: 'Foreign ID Card', payment_receipt: 'Payment Receipt' };
+
+const PERSONAL_FIELDS = [
+  { k: 'father_name', label: "Father's Name" },
+  { k: 'house_name', label: 'House Name' },
+  { k: 'place', label: 'Place' },
+  { k: 'post_office', label: 'Post Office' },
+  { k: 'panchayath', label: 'Panchayath/Municipality' },
+  { k: 'blood_group', label: 'Blood Group' },
+  { k: 'date_of_birth', label: 'Date of Birth', type: 'date' },
+  { k: 'qualification', label: 'Qualification' },
+  { k: 'aadhaar_number', label: 'ID Card Number' },
+];
+
+const EXPAT_FIELDS = [
+  { k: 'phone_abroad', label: 'Phone (Abroad)' },
+  { k: 'home_contact_number', label: 'Home Contact Number' },
+  { k: 'id_card_number_abroad', label: 'ID Number (Abroad)' },
+  { k: 'working_country', label: 'Working Country' },
+  { k: 'city', label: 'City' },
+];
+
+const RETIRED_FIELDS = [
+  { k: 'retired_year', label: 'Retired Year' },
+  { k: 'phone_india', label: 'Phone (India)' },
+];
+
+const COMMON_FIELDS = [
+  { k: 'whatsapp_number', label: 'WhatsApp' },
+  { k: 'email', label: 'E-mail', type: 'email' },
+  { k: 'current_job', label: 'Current Job' },
+  { k: 'years_abroad', label: 'Years Abroad', type: 'number' },
+  { k: 'emergency_name', label: 'Friend/Family Name' },
+  { k: 'emergency_phone', label: 'Friend/Family Phone' },
+];
+
+const EditRow = ({ label, k, value, type = 'text', onChange }) => (
+  <div className="field" style={{ marginBottom: 10 }}>
+    <label>{label}</label>
+    <input
+      type={type}
+      value={value ?? ''}
+      onChange={(e) => onChange(k, e.target.value)}
+      style={{ width: '100%' }}
+    />
+  </div>
+);
 
 export default function ApplicationDetail() {
   const { id } = useParams();
@@ -34,6 +81,10 @@ export default function ApplicationDetail() {
   const [viewer, setViewer] = useState(null); // {url, mime, label}
   const [showAadhaar, setShowAadhaar] = useState(false);
   const [payModal, setPayModal] = useState(null); // 'record' | 'edit'
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState(null);
+  const [editPhoto, setEditPhoto] = useState(null); // { file, previewUrl }
+  const [saving, setSaving] = useState(false);
   const [users, setUsers] = useState([]);
   const userName = (username) => users.find((u) => u.username === username)?.name || username;
   const userLabel = (username) => {
@@ -91,6 +142,49 @@ export default function ApplicationDetail() {
     }
   };
 
+  const ALL_EDIT_FIELDS = ['name', ...PERSONAL_FIELDS, ...EXPAT_FIELDS, ...RETIRED_FIELDS, ...COMMON_FIELDS].map((f) => (typeof f === 'string' ? f : f.k));
+
+  const startEdit = () => {
+    const app = data.application;
+    const form = {};
+    for (const k of ALL_EDIT_FIELDS) form[k] = app[k] ?? '';
+    setEditForm(form);
+    setEditPhoto(null);
+    setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    if (editPhoto?.previewUrl) URL.revokeObjectURL(editPhoto.previewUrl);
+    setEditing(false);
+    setEditForm(null);
+    setEditPhoto(null);
+  };
+
+  const setField = (k, v) => setEditForm((prev) => ({ ...prev, [k]: v }));
+
+  const saveEdit = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await api.updateApplication(id, editForm);
+      if (editPhoto?.file) {
+        const fd = new FormData();
+        fd.append('photo', editPhoto.file);
+        await api.updateApplicationPhoto(id, fd);
+      }
+      if (editPhoto?.previewUrl) URL.revokeObjectURL(editPhoto.previewUrl);
+      setEditing(false);
+      setEditForm(null);
+      setEditPhoto(null);
+      await load();
+      refreshStats?.();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (!data && !error) return <div className="empty-note"><span className="spinner lg" /></div>;
   if (error && !data) return <div className="alert error">{error}</div>;
 
@@ -121,11 +215,20 @@ export default function ApplicationDetail() {
         <div>
           <div className="card" style={{ marginBottom: 20 }}>
             <div style={{ display: 'flex', gap: 18, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-              {photoUrl
+              {editing ? (
+                <PhotoUpload photo={editPhoto || (photoUrl ? { previewUrl: photoUrl } : null)} onChange={setEditPhoto} required={false} label="Member Photo" />
+              ) : photoUrl
                 ? <img src={photoUrl} alt="Member" className="photo-preview-lg" />
                 : <div className="photo-preview-lg" style={{ background: 'var(--blue-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40 }}>👤</div>}
               <div style={{ flex: 1, minWidth: 220 }}>
-                <h2 style={{ marginBottom: 2 }}>{app.name}</h2>
+                {editing ? (
+                  <div className="field" style={{ marginBottom: 10, maxWidth: 320 }}>
+                    <label>Name</label>
+                    <input type="text" value={editForm.name} onChange={(e) => setField('name', e.target.value)} style={{ width: '100%' }} />
+                  </div>
+                ) : (
+                  <h2 style={{ marginBottom: 2 }}>{app.name}</h2>
+                )}
                 <p className="sub" style={{ marginBottom: 10 }}>
                   {app.membership_id ? <strong>{app.membership_id} · </strong> : null}{app.reference_no}
                 </p>
@@ -136,57 +239,87 @@ export default function ApplicationDetail() {
                   {app.is_expat ? <span className="pill teal">Expat</span> : <span className="pill teal">Retired / Returned</span>}
                 </div>
               </div>
+              {isAdmin && !editing && (
+                <button className="btn btn-outline btn-sm no-print" onClick={startEdit}>✎ Edit Details</button>
+              )}
             </div>
+            {editing && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+                <button className="btn btn-primary btn-sm" disabled={saving} onClick={saveEdit}>
+                  {saving ? 'Saving…' : 'Save Changes'}
+                </button>
+                <button className="btn btn-outline btn-sm" disabled={saving} onClick={cancelEdit}>Cancel</button>
+              </div>
+            )}
           </div>
 
           <div className="review-block" style={{ background: '#fff' }}>
             <div className="rb-head"><h4>Personal Information</h4><span /></div>
-            <div className="review-rows">
-              <Row k="Father's Name" v={app.father_name} />
-              <Row k="House Name" v={app.house_name} />
-              <Row k="Place" v={app.place} />
-              <Row k="Post Office" v={app.post_office} />
-              <Row k="Panchayath/Municipality" v={app.panchayath} />
-              <Row k="Blood Group" v={app.blood_group} />
-              <Row k="Date of Birth" v={app.date_of_birth} />
-              <Row k="Qualification" v={app.qualification} />
-              <Row
-                k="ID Card Number"
-                v={
-                  <span style={{ fontFamily: 'monospace' }}>
-                    {showAadhaar ? app.aadhaar_number.replace(/(\d{4})(?=\d)/g, '$1 ') : app.aadhaar_masked}
-                    <button className="btn btn-outline btn-sm" style={{ marginLeft: 10 }} onClick={() => setShowAadhaar(!showAadhaar)}>
-                      {showAadhaar ? 'Hide' : 'Reveal'}
-                    </button>
-                  </span>
-                }
-              />
-            </div>
+            {editing ? (
+              <div style={{ padding: '4px 16px 16px' }}>
+                {PERSONAL_FIELDS.map((f) => (
+                  <EditRow key={f.k} k={f.k} label={f.label} type={f.type} value={editForm[f.k]} onChange={setField} />
+                ))}
+              </div>
+            ) : (
+              <div className="review-rows">
+                <Row k="Father's Name" v={app.father_name} />
+                <Row k="House Name" v={app.house_name} />
+                <Row k="Place" v={app.place} />
+                <Row k="Post Office" v={app.post_office} />
+                <Row k="Panchayath/Municipality" v={app.panchayath} />
+                <Row k="Blood Group" v={app.blood_group} />
+                <Row k="Date of Birth" v={app.date_of_birth} />
+                <Row k="Qualification" v={app.qualification} />
+                <Row
+                  k="ID Card Number"
+                  v={
+                    <span style={{ fontFamily: 'monospace' }}>
+                      {showAadhaar ? app.aadhaar_number.replace(/(\d{4})(?=\d)/g, '$1 ') : app.aadhaar_masked}
+                      <button className="btn btn-outline btn-sm" style={{ marginLeft: 10 }} onClick={() => setShowAadhaar(!showAadhaar)}>
+                        {showAadhaar ? 'Hide' : 'Reveal'}
+                      </button>
+                    </span>
+                  }
+                />
+              </div>
+            )}
           </div>
 
           <div className="review-block" style={{ background: '#fff' }}>
             <div className="rb-head"><h4>{app.is_expat ? 'Expat Details' : 'Retired / Returned Details'}</h4><span /></div>
-            <div className="review-rows">
-              {app.is_expat ? (
-                <>
-                  <Row k="Phone (Abroad)" v={app.phone_abroad} />
-                  <Row k="Home Contact Number" v={app.home_contact_number} />
-                  <Row k="ID Number (Abroad)" v={app.id_card_number_abroad_masked} />
-                  <Row k="Working Country" v={app.working_country} />
-                  <Row k="City" v={app.city} />
-                </>
-              ) : (
-                <>
-                  <Row k="Retired Year" v={app.retired_year} />
-                  <Row k="Phone (India)" v={app.phone_india} />
-                </>
-              )}
-              <Row k="WhatsApp" v={app.whatsapp_number} />
-              <Row k="E-mail" v={app.email} />
-              <Row k="Current Job" v={app.current_job} />
-              <Row k="Years Abroad" v={app.years_abroad} />
-              <Row k="Friend/Family" v={`${app.emergency_name} · ${app.emergency_phone}`} />
-            </div>
+            {editing ? (
+              <div style={{ padding: '4px 16px 16px' }}>
+                {(app.is_expat ? EXPAT_FIELDS : RETIRED_FIELDS).map((f) => (
+                  <EditRow key={f.k} k={f.k} label={f.label} type={f.type} value={editForm[f.k]} onChange={setField} />
+                ))}
+                {COMMON_FIELDS.map((f) => (
+                  <EditRow key={f.k} k={f.k} label={f.label} type={f.type} value={editForm[f.k]} onChange={setField} />
+                ))}
+              </div>
+            ) : (
+              <div className="review-rows">
+                {app.is_expat ? (
+                  <>
+                    <Row k="Phone (Abroad)" v={app.phone_abroad} />
+                    <Row k="Home Contact Number" v={app.home_contact_number} />
+                    <Row k="ID Number (Abroad)" v={app.id_card_number_abroad_masked} />
+                    <Row k="Working Country" v={app.working_country} />
+                    <Row k="City" v={app.city} />
+                  </>
+                ) : (
+                  <>
+                    <Row k="Retired Year" v={app.retired_year} />
+                    <Row k="Phone (India)" v={app.phone_india} />
+                  </>
+                )}
+                <Row k="WhatsApp" v={app.whatsapp_number} />
+                <Row k="E-mail" v={app.email} />
+                <Row k="Current Job" v={app.current_job} />
+                <Row k="Years Abroad" v={app.years_abroad} />
+                <Row k="Friend/Family" v={`${app.emergency_name} · ${app.emergency_phone}`} />
+              </div>
+            )}
           </div>
 
           {data.custom?.length > 0 && (

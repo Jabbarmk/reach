@@ -208,6 +208,23 @@ const EDITABLE_FIELDS = [
   'current_job', 'years_abroad', 'emergency_name', 'emergency_phone',
 ];
 
+const photoUpload = multer({
+  storage: multer.diskStorage({
+    destination: UPLOAD_DIR,
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase().replace(/[^.a-z0-9]/g, '') || '.jpg';
+      cb(null, `photo_${Date.now()}_${crypto.randomBytes(6).toString('hex')}${ext}`);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!['image/jpeg', 'image/png'].includes(file.mimetype)) {
+      return cb(new Error('Photo must be a JPG or PNG'));
+    }
+    cb(null, true);
+  },
+});
+
 // Admin-role only: edit member details.
 router.put('/applications/:id', requireScreen('members'), async (req, res, next) => {
   try {
@@ -251,6 +268,33 @@ router.put('/applications/:id', requireScreen('members'), async (req, res, next)
     const result = fresh[0];
     result.aadhaar_masked = maskAadhaar(result.aadhaar_number);
     res.json({ application: result });
+  } catch (e) { next(e); }
+});
+
+// Admin-role only: replace the member's photo document.
+router.put('/applications/:id/photo', photoUpload.single('photo'), requireScreen('members'), async (req, res, next) => {
+  try {
+    if (!requireAdminRole(req, res)) {
+      if (req.file) { try { fs.unlinkSync(path.join(UPLOAD_DIR, req.file.filename)); } catch { /* ignore */ } }
+      return;
+    }
+    if (!req.file) return res.status(400).json({ error: 'Photo file is required' });
+    const [rows] = await pool.query('SELECT id FROM applications WHERE id = ?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Application not found' });
+    const appId = rows[0].id;
+
+    const [existing] = await pool.query("SELECT id, file_name FROM documents WHERE application_id = ? AND doc_type = 'photo'", [appId]);
+    await pool.query(
+      'INSERT INTO documents (application_id, doc_type, file_name, original_name, mime_type, size_bytes, ocr_status) VALUES (?,?,?,?,?,?,?)',
+      [appId, 'photo', req.file.filename, req.file.originalname, req.file.mimetype, req.file.size, 'not_applicable']
+    );
+    for (const doc of existing) {
+      await pool.query('DELETE FROM documents WHERE id = ?', [doc.id]);
+      try { fs.unlinkSync(path.join(UPLOAD_DIR, path.basename(doc.file_name))); } catch { /* already gone */ }
+    }
+    await pool.query('INSERT INTO status_history (application_id, action, detail, actor) VALUES (?,?,?,?)',
+      [appId, 'Edited', 'Replaced member photo', req.admin.username]);
+    res.json({ ok: true });
   } catch (e) { next(e); }
 });
 
