@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { canOcr } from '../ocr.js';
 
 const MAX_MB = 5;
@@ -10,6 +10,7 @@ const ACCEPT = 'application/pdf,image/jpeg,image/png';
  */
 export default function DocUpload({ label, doc, onChange, onExtract, ocrState, setOcrState, hint, required = false, error }) {
   const inputRef = useRef(null);
+  const inputId = useId();
   const [drag, setDrag] = useState(false);
   const [localError, setLocalError] = useState(null);
 
@@ -60,7 +61,8 @@ export default function DocUpload({ label, doc, onChange, onExtract, ocrState, s
   return (
     <div className={`field ${error ? 'invalid' : ''}`}>
       <label>{label} {required ? <span className="req">*</span> : <span className="opt">(optional)</span>}</label>
-      <input ref={inputRef} type="file" accept={ACCEPT} hidden onChange={(e) => pickFile(e.target.files?.[0])} />
+      {/* Same native <label> trigger as PhotoUpload — see the note there. */}
+      <input ref={inputRef} id={inputId} type="file" accept={ACCEPT} className="file-input-hidden" onChange={(e) => pickFile(e.target.files?.[0])} />
 
       {doc ? (
         <div className="upload-preview">
@@ -71,13 +73,13 @@ export default function DocUpload({ label, doc, onChange, onExtract, ocrState, s
             <div className="fname">{doc.file.name}</div>
             <div className="fsize">{sizeLabel(doc.file.size)}</div>
           </div>
-          <button type="button" className="btn btn-outline btn-sm" onClick={() => inputRef.current?.click()}>Replace</button>
+          <label htmlFor={inputId} className="btn btn-outline btn-sm" role="button">Replace</label>
           <button type="button" className="btn btn-ghost btn-sm" onClick={remove}>Remove</button>
         </div>
       ) : (
-        <div
+        <label
+          htmlFor={inputId}
           className={`upload-zone ${drag ? 'drag' : ''}`}
-          onClick={() => inputRef.current?.click()}
           onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
           onDragLeave={() => setDrag(false)}
           onDrop={(e) => { e.preventDefault(); setDrag(false); pickFile(e.dataTransfer.files?.[0]); }}
@@ -85,7 +87,7 @@ export default function DocUpload({ label, doc, onChange, onExtract, ocrState, s
           <div className="ico">🪪</div>
           <div className="t1">Click to upload</div>
           <div className="t2">{hint || 'PDF, JPG or PNG, up to 5 MB'}</div>
-        </div>
+        </label>
       )}
 
       {(localError || error) && <div className="err">{localError || error}</div>}
