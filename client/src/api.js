@@ -1,4 +1,5 @@
 const TOKEN_KEY = 'reach_admin_token';
+const MEMBER_TOKEN_KEY = 'reach_member_token';
 
 export const getToken = () => {
   try { return sessionStorage.getItem(TOKEN_KEY); } catch { return null; }
@@ -7,9 +8,16 @@ export const setToken = (t) => {
   try { t ? sessionStorage.setItem(TOKEN_KEY, t) : sessionStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ }
 };
 
+export const getMemberToken = () => {
+  try { return sessionStorage.getItem(MEMBER_TOKEN_KEY); } catch { return null; }
+};
+export const setMemberToken = (t) => {
+  try { t ? sessionStorage.setItem(MEMBER_TOKEN_KEY, t) : sessionStorage.removeItem(MEMBER_TOKEN_KEY); } catch { /* ignore */ }
+};
+
 async function request(url, options = {}) {
   const headers = { ...(options.headers || {}) };
-  const token = getToken();
+  const token = options.memberAuth ? getMemberToken() : getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   if (options.json) {
     headers['Content-Type'] = 'application/json';
@@ -132,6 +140,10 @@ export const api = {
   createPlan: (p) => request('/api/admin/form/plans', { method: 'POST', json: p }),
   updatePlan: (id, p) => request(`/api/admin/form/plans/${id}`, { method: 'PUT', json: p }),
   deletePlan: (id) => request(`/api/admin/form/plans/${id}`, { method: 'DELETE' }),
+  // Member portal
+  memberLoginRequest: (email) => request('/api/member/login/request', { method: 'POST', json: { email } }),
+  memberLoginVerify: (email, code) => request('/api/member/login/verify', { method: 'POST', json: { email, code } }),
+  memberMe: () => request('/api/member/me', { memberAuth: true }),
 };
 
 export const getSession = () => {

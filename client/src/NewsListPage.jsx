@@ -85,7 +85,7 @@ export default function NewsListPage() {
 
   const NavActions = () => (
     <div className="hp-nav-actions">
-      <button className="hp-nav-btn member" disabled title="Member login is coming soon">Member Login</button>
+      <Link className="hp-nav-btn member" to="/member/login">Member Login</Link>
       <Link className="hp-nav-btn admin" to="/admin">Admin Login</Link>
     </div>
   );

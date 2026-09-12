@@ -13,6 +13,7 @@ import ledgerRoutes from './routes/ledger.js';
 import newsRoutes from './routes/news.js';
 import committeeRoutes from './routes/committee.js';
 import reportRoutes from './routes/reports.js';
+import memberRoutes from './routes/member.js';
 import { loadRoles } from './middleware/auth.js';
 
 dotenv.config();
@@ -34,6 +35,7 @@ app.use('/api/admin/news', newsRoutes);
 app.use('/api/admin/committee', committeeRoutes);
 app.use('/api/admin/reports', reportRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/member', memberRoutes);
 
 app.use((err, req, res, next) => {
   if (err.name === 'MulterError') {

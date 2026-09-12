@@ -15,6 +15,8 @@ import SettingsPage from './admin/SettingsPage.jsx';
 import FormBuilder from './admin/FormBuilder.jsx';
 import CommitteePage from './admin/CommitteePage.jsx';
 import ReportsPage from './admin/ReportsPage.jsx';
+import MemberLogin from './member/MemberLogin.jsx';
+import MemberDashboard from './member/MemberDashboard.jsx';
 
 function PublicHeader() {
   const { pathname } = useLocation();
@@ -42,6 +44,8 @@ export default function App() {
         <Route path="/news" element={<NewsListPage />} />
         <Route path="/register" element={<RegistrationWizard />} />
         <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/member/login" element={<MemberLogin />} />
+        <Route path="/member" element={<MemberDashboard />} />
         <Route path="/admin" element={<AdminLayout />}>
           <Route element={<ScreenGuard screen="overview" />}>
             <Route index element={<Overview />} />
