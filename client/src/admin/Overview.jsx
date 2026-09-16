@@ -8,8 +8,11 @@ export default function Overview() {
   const [recent, setRecent] = useState(null);
   const [reg, setReg] = useState(null);
   const [regBusy, setRegBusy] = useState(false);
+  const [editRequests, setEditRequests] = useState(null);
+  const [editRequestCount, setEditRequestCount] = useState(null);
   const navigate = useNavigate();
   const canToggle = session?.screens?.includes('settings');
+  const canSeeMembers = session?.screens?.includes('members');
 
   useEffect(() => {
     (async () => {
@@ -23,6 +26,13 @@ export default function Overview() {
         const cfg = await api.formConfig();
         setReg(cfg.registration || { open: true });
       } catch { /* status stays unknown */ }
+      if (canSeeMembers) {
+        try {
+          const requests = await api.listMemberEditRequests({ status: 'Pending' });
+          setEditRequestCount(requests.length);
+          setEditRequests(requests.slice(0, 5));
+        } catch { /* widget just stays hidden */ }
+      }
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -47,6 +57,9 @@ export default function Overview() {
     { label: 'Payments received', value: stats?.paid, ico: '₹', tone: 'teal', chip: null, link: '/admin/payments' },
     { label: 'Rejected members', value: rejected, ico: '⛔', tone: 'red', chip: null, link: '/admin/members?status=Rejected' },
   ];
+  if (canSeeMembers) {
+    CARDS.push({ label: 'Member edit requests', value: editRequestCount, ico: '✎', tone: 'blue', chip: null, link: '/admin/members' });
+  }
 
   return (
     <>
@@ -118,6 +131,28 @@ export default function Overview() {
             ))}
           </div>
         </div>
+      )}
+
+      {canSeeMembers && editRequests?.length > 0 && (
+        <>
+          <div className="ovr-recent-head">
+            <h2>Pending member edit requests</h2>
+            <Link to="/admin/members">Review all →</Link>
+          </div>
+          <div className="card" style={{ marginBottom: 24 }}>
+            <div className="review-rows" style={{ padding: 0 }}>
+              {editRequests.map((r) => (
+                <div className="review-row" key={r.id} style={{ cursor: 'pointer' }} onClick={() => navigate('/admin/members')}>
+                  <div className="k">{r.name}</div>
+                  <div className="v">
+                    {r.membership_id || r.reference_no} · {Object.keys(r.changes || {}).length} field{Object.keys(r.changes || {}).length === 1 ? '' : 's'}
+                    {r.photo_file_name ? ' + photo' : ''} · {new Date(r.created_at).toLocaleDateString('en-IN')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
       )}
 
       <div className="ovr-recent-head">
