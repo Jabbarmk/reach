@@ -915,7 +915,7 @@ img { max-width: 100%; }
   width: 42px; height: 42px; border-radius: 50%; background: var(--blue-700); color: #fff;
   display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px;
 }
-.acontent { padding: 26px; max-width: 1240px; width: 100%; }
+.acontent { padding: 26px; max-width: 1600px; width: 100%; }
 
 @media (max-width: 860px) {
   .ashell { flex-direction: column; }
