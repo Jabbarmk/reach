@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
-import { api, fetchDocBlob, setToken, exportCsv } from '../api.js';
+import { api, fetchDocBlob, fetchMemberEditRequestPhotoBlob, setToken, exportCsv } from '../api.js';
 import { parseLocalDate, formatDate } from '../dateUtils.js';
 import { AppsTable, MemberGrid } from './shared.jsx';
 import PaymentModal from './PaymentModal.jsx';
@@ -233,6 +233,136 @@ function MemberEditModal({ id, onClose, onSaved }) {
   );
 }
 
+const EDIT_REQUEST_FIELD_LABELS = {
+  name: 'Name', father_name: "Father's Name", house_name: 'House Name', place: 'Place',
+  post_office: 'Post Office', panchayath: 'Panchayath/Municipality', blood_group: 'Blood Group',
+  date_of_birth: 'Date of Birth', aadhaar_number: 'ID Card Number', qualification: 'Qualification',
+  phone_abroad: 'Phone (Abroad)', home_contact_number: 'Home Contact Number', id_card_number_abroad: 'ID Number (Abroad)',
+  working_country: 'Working Country', city: 'City', retired_year: 'Retired Year', phone_india: 'Phone (India)',
+  whatsapp_number: 'WhatsApp', email: 'E-mail', current_job: 'Current Job', years_abroad: 'Years Abroad',
+  emergency_name: 'Friend/Family Name', emergency_phone: 'Friend/Family Phone',
+};
+
+function MemberEditRequestCard({ req, onReviewed }) {
+  const [photoUrl, setPhotoUrl] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!req.photo_file_name) return undefined;
+    let cancelled = false;
+    let url = null;
+    (async () => {
+      try { url = await fetchMemberEditRequestPhotoBlob(req.id); if (!cancelled) setPhotoUrl(url); }
+      catch { /* preview just stays unavailable */ }
+    })();
+    return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
+  }, [req.id, req.photo_file_name]);
+
+  const act = async (action) => {
+    setError(null);
+    let note;
+    if (action === 'reject') {
+      note = window.prompt('Reason for rejecting this request (optional):') || '';
+      if (note === null) return;
+    }
+    setBusy(true);
+    try {
+      await api.memberEditRequestAction(req.id, action, note);
+      onReviewed();
+    } catch (err) { setError(err.message); setBusy(false); }
+  };
+
+  const changeEntries = Object.entries(req.changes || {});
+
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 10 }}>
+        <div>
+          <strong>{req.name}</strong>
+          <div className="hint">{req.membership_id || req.reference_no} · Requested {new Date(req.created_at).toLocaleString('en-IN')}</div>
+        </div>
+        <span className={`pill ${req.status === 'Pending' ? 'orange' : req.status === 'Approved' ? 'green' : 'red'}`}>{req.status}</span>
+      </div>
+
+      {error && <div className="alert error" style={{ marginBottom: 10 }}>{error}</div>}
+
+      {photoUrl && (
+        <div style={{ marginBottom: 10 }}>
+          <img src={photoUrl} alt="Requested photo" style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8 }} />
+          <div className="hint">New photo requested</div>
+        </div>
+      )}
+
+      {changeEntries.length > 0 ? (
+        <div className="review-rows" style={{ padding: 0, marginBottom: req.status === 'Pending' ? 12 : 0 }}>
+          {changeEntries.map(([k, v]) => (
+            <div className="review-row" key={k}>
+              <div className="k">{EDIT_REQUEST_FIELD_LABELS[k] || k}</div>
+              <div className="v">{v === null || v === '' ? '—' : String(v)}</div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="hint" style={{ marginBottom: req.status === 'Pending' ? 12 : 0 }}>No field changes — photo only.</p>
+      )}
+
+      {req.status !== 'Pending' && req.admin_note && (
+        <div className="hint">Reviewer note: {req.admin_note}</div>
+      )}
+
+      {req.status === 'Pending' && (
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button className="btn btn-outline btn-sm" onClick={() => act('reject')} disabled={busy}>Reject</button>
+          <button className="btn btn-primary btn-sm" onClick={() => act('approve')} disabled={busy}>Approve</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MemberEditRequestsTab({ onCountChange }) {
+  const [rows, setRows] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('Pending');
+  const [error, setError] = useState(null);
+
+  const load = async () => {
+    try {
+      const data = await api.listMemberEditRequests(statusFilter === 'All' ? {} : { status: statusFilter });
+      setRows(data);
+    } catch (err) { setError(err.message); }
+  };
+
+  useEffect(() => { load(); }, [statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const pending = await api.listMemberEditRequests({ status: 'Pending' });
+        onCountChange?.(pending.length);
+      } catch { /* badge just stays at 0 */ }
+    })();
+  }, [rows]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <>
+      <div className="view-toolbar">
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          {['Pending', 'Approved', 'Rejected', 'All'].map((s) => <option key={s}>{s}</option>)}
+        </select>
+      </div>
+      {error && <div className="alert error">{error}</div>}
+      {!rows ? (
+        <div className="empty-note"><span className="spinner lg" /></div>
+      ) : rows.length === 0 ? (
+        <div className="empty-note">No {statusFilter !== 'All' ? statusFilter.toLowerCase() : ''} edit requests.</div>
+      ) : (
+        rows.map((req) => <MemberEditRequestCard key={req.id} req={req} onReviewed={load} />)
+      )}
+    </>
+  );
+}
+
 function usePersisted(key, initial) {
   const [value, setValue] = useState(() => {
     try { return localStorage.getItem(key) || initial; } catch { return initial; }
@@ -326,6 +456,7 @@ export function MembersPage() {
   const [gridFields, setGridFields] = usePersistedFields('reach_members_grid_fields');
   const [photoUrls, setPhotoUrls] = useState({});
   const [locationOptions, setLocationOptions] = useState(null);
+  const [editRequestCount, setEditRequestCount] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -430,43 +561,50 @@ export function MembersPage() {
       <PageHead title="Members" sub="All membership applications and registered members.">
         <MembersSummary stats={stats} />
       </PageHead>
-      {isAdmin && (
-        <div className="tab-row">
-          <button className={`tab ${tab === 'members' ? 'active' : ''}`} onClick={() => setTab('members')}>Members</button>
-          <button className={`tab ${tab === 'deleted' ? 'active' : ''}`} onClick={() => setTab('deleted')}>Deleted Members</button>
-        </div>
-      )}
+      <div className="tab-row">
+        <button className={`tab ${tab === 'members' ? 'active' : ''}`} onClick={() => setTab('members')}>Members</button>
+        <button className={`tab ${tab === 'edit-requests' ? 'active' : ''}`} onClick={() => setTab('edit-requests')}>
+          Edit Requests{editRequestCount ? ` (${editRequestCount})` : ''}
+        </button>
+        {isAdmin && <button className={`tab ${tab === 'deleted' ? 'active' : ''}`} onClick={() => setTab('deleted')}>Deleted Members</button>}
+      </div>
       {(ctl.error || actionError) && <div className="alert error">{ctl.error || actionError}</div>}
 
-      <div className="view-toolbar">
-        <div className="seg" role="group" aria-label="View">
-          <button className={`seg-btn ${view === 'table' ? 'active' : ''}`} onClick={() => setView('table')}>☰ Table</button>
-          <button className={`seg-btn ${view === 'grid' ? 'active' : ''}`} onClick={() => setView('grid')}>▦ Grid</button>
-        </div>
-        {view === 'grid' && (
-          <div className="seg" role="group" aria-label="Card size">
-            <button className={`seg-btn ${cardSize === 'default' ? 'active' : ''}`} onClick={() => setCardSize('default')}>Default</button>
-            <button className={`seg-btn ${cardSize === 'compact' ? 'active' : ''}`} onClick={() => setCardSize('compact')}>Compact</button>
-          </div>
-        )}
-        <FieldsMenu fields={gridFields} setFields={setGridFields} />
-        <span style={{ flex: 1 }} />
-        <button className="btn btn-outline btn-sm" onClick={exportMembers} disabled={!ctl.rows?.length}>⬇ Export to Excel</button>
-      </div>
+      {tab === 'edit-requests' && <MemberEditRequestsTab onCountChange={setEditRequestCount} />}
 
-      {tab === 'members' ? (
+      {tab !== 'edit-requests' && (
         <>
-          <Toolbar ctl={ctl} withStatus locationOptions={locationOptions} />
-          {view === 'table'
-            ? <AppsTable rows={ctl.rows} renderActions={isAdmin ? memberActions : undefined} fields={gridFields} />
-            : <MemberGrid rows={ctl.rows} size={cardSize} photoUrls={photoUrls} menuItems={isAdmin ? memberMenuItems : undefined} fields={gridFields} />}
-        </>
-      ) : (
-        <>
-          <Toolbar ctl={ctl} />
-          {view === 'table'
-            ? <AppsTable rows={ctl.rows} emptyText={deletedEmptyText} renderActions={deletedActions} fields={gridFields} />
-            : <MemberGrid rows={ctl.rows} size={cardSize} photoUrls={photoUrls} menuItems={deletedMenuItems} emptyText={deletedEmptyText} fields={gridFields} />}
+          <div className="view-toolbar">
+            <div className="seg" role="group" aria-label="View">
+              <button className={`seg-btn ${view === 'table' ? 'active' : ''}`} onClick={() => setView('table')}>☰ Table</button>
+              <button className={`seg-btn ${view === 'grid' ? 'active' : ''}`} onClick={() => setView('grid')}>▦ Grid</button>
+            </div>
+            {view === 'grid' && (
+              <div className="seg" role="group" aria-label="Card size">
+                <button className={`seg-btn ${cardSize === 'default' ? 'active' : ''}`} onClick={() => setCardSize('default')}>Default</button>
+                <button className={`seg-btn ${cardSize === 'compact' ? 'active' : ''}`} onClick={() => setCardSize('compact')}>Compact</button>
+              </div>
+            )}
+            <FieldsMenu fields={gridFields} setFields={setGridFields} />
+            <span style={{ flex: 1 }} />
+            <button className="btn btn-outline btn-sm" onClick={exportMembers} disabled={!ctl.rows?.length}>⬇ Export to Excel</button>
+          </div>
+
+          {tab === 'members' ? (
+            <>
+              <Toolbar ctl={ctl} withStatus locationOptions={locationOptions} />
+              {view === 'table'
+                ? <AppsTable rows={ctl.rows} renderActions={isAdmin ? memberActions : undefined} fields={gridFields} />
+                : <MemberGrid rows={ctl.rows} size={cardSize} photoUrls={photoUrls} menuItems={isAdmin ? memberMenuItems : undefined} fields={gridFields} />}
+            </>
+          ) : (
+            <>
+              <Toolbar ctl={ctl} />
+              {view === 'table'
+                ? <AppsTable rows={ctl.rows} emptyText={deletedEmptyText} renderActions={deletedActions} fields={gridFields} />
+                : <MemberGrid rows={ctl.rows} size={cardSize} photoUrls={photoUrls} menuItems={deletedMenuItems} emptyText={deletedEmptyText} fields={gridFields} />}
+            </>
+          )}
         </>
       )}
       {editId && (

@@ -141,10 +141,28 @@ export const api = {
   updatePlan: (id, p) => request(`/api/admin/form/plans/${id}`, { method: 'PUT', json: p }),
   deletePlan: (id) => request(`/api/admin/form/plans/${id}`, { method: 'DELETE' }),
   // Member portal
-  memberLoginRequest: (email) => request('/api/member/login/request', { method: 'POST', json: { email } }),
-  memberLoginVerify: (email, code) => request('/api/member/login/verify', { method: 'POST', json: { email, code } }),
+  memberLogin: (email, memberId) => request('/api/member/login', { method: 'POST', json: { email, member_id: memberId } }),
   memberMe: () => request('/api/member/me', { memberAuth: true }),
+  memberPhotoUrl: () => '/api/member/photo',
+  memberGetEditRequest: () => request('/api/member/edit-request', { memberAuth: true }),
+  memberSubmitEditRequest: (formData) => request('/api/member/edit-request', { method: 'POST', body: formData, memberAuth: true }),
+  // Member edit requests (admin review)
+  listMemberEditRequests: (params = {}) => request(`/api/admin/member-edit-requests?${new URLSearchParams(params)}`),
+  memberEditRequestPhotoUrl: (id) => `/api/admin/member-edit-requests/${id}/photo`,
+  memberEditRequestAction: (id, action, note) => request(`/api/admin/member-edit-requests/${id}/action`, { method: 'POST', json: { action, note } }),
 };
+
+export async function fetchMemberPhotoBlob() {
+  const res = await fetch(api.memberPhotoUrl(), { headers: { Authorization: `Bearer ${getMemberToken()}` } });
+  if (!res.ok) throw new Error('Could not load photo');
+  return URL.createObjectURL(await res.blob());
+}
+
+export async function fetchMemberEditRequestPhotoBlob(id) {
+  const res = await fetch(api.memberEditRequestPhotoUrl(id), { headers: { Authorization: `Bearer ${getToken()}` } });
+  if (!res.ok) throw new Error('Could not load photo');
+  return URL.createObjectURL(await res.blob());
+}
 
 export const getSession = () => {
   try { return JSON.parse(sessionStorage.getItem('reach_admin_session') || 'null'); } catch { return null; }

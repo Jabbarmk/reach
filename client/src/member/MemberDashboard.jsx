@@ -2,6 +2,12 @@ import { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { api, getMemberToken, setMemberToken } from '../api.js';
 import MembershipCard from '../admin/MembershipCard.jsx';
+import MemberEditForm from './MemberEditForm.jsx';
+
+const editRequestPill = (s) => {
+  const map = { Pending: 'orange', Approved: 'green', Rejected: 'red' };
+  return <span className={`pill ${map[s] || 'grey'}`}>{s}</span>;
+};
 
 const statusPill = (s) => {
   const map = {
@@ -15,17 +21,21 @@ export default function MemberDashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [editRequest, setEditRequest] = useState(null);
+  const [editing, setEditing] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        setData(await api.memberMe());
-      } catch (err) {
-        if (err.status === 401) { setMemberToken(null); navigate('/member/login'); return; }
-        setError(err.message);
-      }
-    })();
-  }, [navigate]);
+  const load = async () => {
+    try {
+      const [me, reqRes] = await Promise.all([api.memberMe(), api.memberGetEditRequest()]);
+      setData(me);
+      setEditRequest(reqRes.request);
+    } catch (err) {
+      if (err.status === 401) { setMemberToken(null); navigate('/member/login'); return; }
+      setError(err.message);
+    }
+  };
+
+  useEffect(() => { load(); }, [navigate]);
 
   if (!getMemberToken()) return <Navigate to="/member/login" replace />;
   if (error) return <div className="empty-note"><div className="alert error">{error}</div></div>;
@@ -33,6 +43,7 @@ export default function MemberDashboard() {
 
   const { application: app, payments, history } = data;
   const logout = () => { setMemberToken(null); navigate('/member/login'); };
+  const hasPendingRequest = editRequest?.status === 'Pending';
 
   return (
     <div style={{ maxWidth: 720, margin: '0 auto', padding: '32px 16px' }}>
@@ -54,6 +65,31 @@ export default function MemberDashboard() {
         </div>
         {app.admin_note && <div className="alert info" style={{ marginTop: 12, marginBottom: 0 }}>Note from society office: {app.admin_note}</div>}
       </div>
+
+      {editRequest && editRequest.status !== 'Approved' && (
+        <div className="alert" style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {editRequestPill(editRequest.status)}
+          <span>
+            {editRequest.status === 'Pending'
+              ? 'Your edit request is awaiting review by the society office.'
+              : `Your last edit request was rejected${editRequest.admin_note ? `: ${editRequest.admin_note}` : '.'}`}
+          </span>
+        </div>
+      )}
+
+      {editing ? (
+        <MemberEditForm
+          app={app}
+          onCancel={() => setEditing(false)}
+          onSubmitted={async () => { setEditing(false); await load(); }}
+        />
+      ) : (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+          <button className="btn btn-outline btn-sm" onClick={() => setEditing(true)} disabled={hasPendingRequest}>
+            {hasPendingRequest ? 'Edit request pending review' : '✎ Edit My Details'}
+          </button>
+        </div>
+      )}
 
       {app.membership_id && (
         <div className="card" style={{ marginBottom: 20 }}>

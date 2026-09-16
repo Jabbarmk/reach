@@ -298,6 +298,87 @@ router.put('/applications/:id/photo', photoUpload.single('photo'), requireScreen
   } catch (e) { next(e); }
 });
 
+// Member-submitted edit requests, awaiting approval.
+router.get('/member-edit-requests', requireScreen('members'), async (req, res, next) => {
+  try {
+    const { status } = req.query;
+    let sql = `SELECT r.id, r.application_id, r.changes, r.photo_file_name, r.photo_original_name, r.status, r.admin_note,
+                      r.reviewed_by, r.reviewed_at, r.created_at,
+                      a.name, a.reference_no, a.membership_id
+               FROM member_edit_requests r JOIN applications a ON a.id = r.application_id`;
+    const params = [];
+    if (status && status !== 'All') { sql += ' WHERE r.status = ?'; params.push(status); }
+    sql += ' ORDER BY r.created_at DESC LIMIT 500';
+    const [rows] = await pool.query(sql, params);
+    res.json(rows.map((r) => ({ ...r, changes: typeof r.changes === 'string' ? JSON.parse(r.changes) : r.changes })));
+  } catch (e) { next(e); }
+});
+
+router.get('/member-edit-requests/:id/photo', requireScreen('members'), async (req, res, next) => {
+  try {
+    const [rows] = await pool.query('SELECT photo_file_name, photo_original_name, photo_mime_type FROM member_edit_requests WHERE id = ?', [req.params.id]);
+    if (!rows.length || !rows[0].photo_file_name) return res.status(404).json({ error: 'No photo on this request' });
+    const doc = rows[0];
+    res.setHeader('Content-Type', doc.photo_mime_type || 'image/jpeg');
+    res.sendFile(path.join(UPLOAD_DIR, path.basename(doc.photo_file_name)));
+  } catch (e) { next(e); }
+});
+
+router.post('/member-edit-requests/:id/action', requireScreen('members'), async (req, res, next) => {
+  try {
+    const { action, note } = req.body || {};
+    if (!['approve', 'reject'].includes(action)) return res.status(400).json({ error: 'Unknown action' });
+
+    const [rows] = await pool.query('SELECT * FROM member_edit_requests WHERE id = ?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Edit request not found' });
+    const editRequest = rows[0];
+    if (editRequest.status !== 'Pending') return res.status(400).json({ error: 'This request has already been reviewed' });
+
+    const [appRows] = await pool.query('SELECT * FROM applications WHERE id = ?', [editRequest.application_id]);
+    if (!appRows.length) return res.status(404).json({ error: 'Application not found' });
+    const app = appRows[0];
+
+    if (action === 'reject') {
+      await pool.query(
+        "UPDATE member_edit_requests SET status = 'Rejected', admin_note = ?, reviewed_by = ?, reviewed_at = NOW() WHERE id = ?",
+        [note || null, req.admin.username, editRequest.id]
+      );
+      if (editRequest.photo_file_name) {
+        try { fs.unlinkSync(path.join(UPLOAD_DIR, path.basename(editRequest.photo_file_name))); } catch { /* already gone */ }
+      }
+      return res.json({ ok: true });
+    }
+
+    const changes = typeof editRequest.changes === 'string' ? JSON.parse(editRequest.changes) : editRequest.changes;
+    const changed = Object.keys(changes).filter((k) => String(changes[k] ?? '') !== String(app[k] ?? ''));
+    if (changed.length) {
+      await pool.query(`UPDATE applications SET ${changed.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`, [...changed.map((k) => changes[k]), app.id]);
+    }
+    if (editRequest.photo_file_name) {
+      const [existingPhotos] = await pool.query("SELECT id, file_name FROM documents WHERE application_id = ? AND doc_type = 'photo'", [app.id]);
+      await pool.query(
+        'INSERT INTO documents (application_id, doc_type, file_name, original_name, mime_type, size_bytes, ocr_status) VALUES (?,?,?,?,?,?,?)',
+        [app.id, 'photo', editRequest.photo_file_name, editRequest.photo_original_name || editRequest.photo_file_name, editRequest.photo_mime_type || 'image/jpeg', 0, 'not_applicable']
+      );
+      for (const doc of existingPhotos) {
+        await pool.query('DELETE FROM documents WHERE id = ?', [doc.id]);
+        try { fs.unlinkSync(path.join(UPLOAD_DIR, path.basename(doc.file_name))); } catch { /* already gone */ }
+      }
+    }
+    await pool.query(
+      "UPDATE member_edit_requests SET status = 'Approved', admin_note = ?, reviewed_by = ?, reviewed_at = NOW() WHERE id = ?",
+      [note || null, req.admin.username, editRequest.id]
+    );
+    if (changed.length || editRequest.photo_file_name) {
+      const detailParts = [...changed];
+      if (editRequest.photo_file_name) detailParts.push('photo');
+      await pool.query('INSERT INTO status_history (application_id, action, detail, actor) VALUES (?,?,?,?)',
+        [app.id, 'Edited', `Member edit request approved — updated: ${detailParts.join(', ')}`, req.admin.username]);
+    }
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
 // Lightweight lookup for the "Cash Collected By" dropdown — any logged-in dashboard user
 // needs this (not gated by the 'users' screen, which is admin-only).
 router.get('/users/collectors', async (req, res, next) => {
