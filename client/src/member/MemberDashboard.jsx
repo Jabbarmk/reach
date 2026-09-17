@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { api, getMemberToken, setMemberToken } from '../api.js';
+import { api, fetchMemberPhotoBlob, getMemberToken, setMemberToken } from '../api.js';
 import MembershipCard from '../admin/MembershipCard.jsx';
 import MemberEditForm from './MemberEditForm.jsx';
 
@@ -23,6 +23,7 @@ export default function MemberDashboard() {
   const [error, setError] = useState(null);
   const [editRequest, setEditRequest] = useState(null);
   const [editing, setEditing] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState(null);
 
   const load = async () => {
     try {
@@ -36,6 +37,16 @@ export default function MemberDashboard() {
   };
 
   useEffect(() => { load(); }, [navigate]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let url = null;
+    (async () => {
+      try { url = await fetchMemberPhotoBlob(); if (!cancelled) setPhotoUrl(url); }
+      catch { /* no photo on file — placeholder is shown instead */ }
+    })();
+    return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
+  }, [data?.application?.id]);
 
   if (!getMemberToken()) return <Navigate to="/member/login" replace />;
   if (error) return <div className="empty-note"><div className="alert error">{error}</div></div>;
@@ -94,7 +105,7 @@ export default function MemberDashboard() {
       {app.membership_id && (
         <div className="card" style={{ marginBottom: 20 }}>
           <h2 style={{ fontSize: 16, marginBottom: 12 }}>Membership Card</h2>
-          <MembershipCard app={app} photoUrl={null} />
+          <MembershipCard app={app} photoUrl={photoUrl} />
         </div>
       )}
 

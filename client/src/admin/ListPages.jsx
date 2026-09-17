@@ -321,7 +321,7 @@ function MemberEditRequestCard({ req, onReviewed }) {
   );
 }
 
-function MemberEditRequestsTab({ onCountChange }) {
+function MemberEditRequestsTab({ onCountChange, onReviewed }) {
   const [rows, setRows] = useState(null);
   const [statusFilter, setStatusFilter] = useState('Pending');
   const [error, setError] = useState(null);
@@ -344,6 +344,8 @@ function MemberEditRequestsTab({ onCountChange }) {
     })();
   }, [rows]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleReviewed = () => { load(); onReviewed?.(); };
+
   return (
     <>
       <div className="view-toolbar">
@@ -357,7 +359,7 @@ function MemberEditRequestsTab({ onCountChange }) {
       ) : rows.length === 0 ? (
         <div className="empty-note">No {statusFilter !== 'All' ? statusFilter.toLowerCase() : ''} edit requests.</div>
       ) : (
-        rows.map((req) => <MemberEditRequestCard key={req.id} req={req} onReviewed={load} />)
+        rows.map((req) => <MemberEditRequestCard key={req.id} req={req} onReviewed={handleReviewed} />)
       )}
     </>
   );
@@ -570,7 +572,7 @@ export function MembersPage() {
       </div>
       {(ctl.error || actionError) && <div className="alert error">{ctl.error || actionError}</div>}
 
-      {tab === 'edit-requests' && <MemberEditRequestsTab onCountChange={setEditRequestCount} />}
+      {tab === 'edit-requests' && <MemberEditRequestsTab onCountChange={setEditRequestCount} onReviewed={() => { ctl.load(); refreshStats?.(); }} />}
 
       {tab !== 'edit-requests' && (
         <>

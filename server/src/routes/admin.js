@@ -356,9 +356,11 @@ router.post('/member-edit-requests/:id/action', requireScreen('members'), async 
     }
     if (editRequest.photo_file_name) {
       const [existingPhotos] = await pool.query("SELECT id, file_name FROM documents WHERE application_id = ? AND doc_type = 'photo'", [app.id]);
+      let sizeBytes = 0;
+      try { sizeBytes = fs.statSync(path.join(UPLOAD_DIR, path.basename(editRequest.photo_file_name))).size; } catch { /* file missing — size stays 0 */ }
       await pool.query(
         'INSERT INTO documents (application_id, doc_type, file_name, original_name, mime_type, size_bytes, ocr_status) VALUES (?,?,?,?,?,?,?)',
-        [app.id, 'photo', editRequest.photo_file_name, editRequest.photo_original_name || editRequest.photo_file_name, editRequest.photo_mime_type || 'image/jpeg', 0, 'not_applicable']
+        [app.id, 'photo', editRequest.photo_file_name, editRequest.photo_original_name || editRequest.photo_file_name, editRequest.photo_mime_type || 'image/jpeg', sizeBytes, 'not_applicable']
       );
       for (const doc of existingPhotos) {
         await pool.query('DELETE FROM documents WHERE id = ?', [doc.id]);
