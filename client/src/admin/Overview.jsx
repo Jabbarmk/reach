@@ -52,7 +52,7 @@ export default function Overview() {
   const who = sessionStorage.getItem('reach_admin_user') || 'admin';
 
   const CARDS = [
-    { label: 'Active members', value: active, ico: '✅', tone: 'green', chip: null },
+    { label: 'Active members', value: active, ico: '✅', tone: 'green', chip: null, link: '/admin/members?status=Active' },
     { label: 'Pending approvals', value: stats?.pending, ico: '⏳', tone: 'orange', chip: null, link: '/admin/approvals' },
     { label: 'Payments received', value: stats?.paid, ico: '₹', tone: 'teal', chip: null, link: '/admin/payments' },
     { label: 'Rejected members', value: rejected, ico: '⛔', tone: 'red', chip: null, link: '/admin/members?status=Rejected' },
