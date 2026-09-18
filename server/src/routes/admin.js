@@ -476,7 +476,7 @@ router.get('/payments/due', requireScreen('payments'), async (req, res, next) =>
 
 router.get('/payments', requireScreen('payments'), async (req, res, next) => {
   try {
-    const { search, method, collected_by, recorded_by } = req.query;
+    const { search, method, collected_by, recorded_by, membership_type, from_date, to_date } = req.query;
     let sql = `SELECT p.*, a.name, a.reference_no, a.membership_id, a.membership_type, a.status AS member_status
                FROM payments p JOIN applications a ON a.id = p.application_id
                WHERE a.deleted_at IS NULL`;
@@ -488,6 +488,9 @@ router.get('/payments', requireScreen('payments'), async (req, res, next) => {
     if (method) { sql += ' AND p.method = ?'; params.push(method); }
     if (collected_by) { sql += ' AND p.collected_by = ?'; params.push(collected_by); }
     if (recorded_by) { sql += ' AND p.recorded_by = ?'; params.push(recorded_by); }
+    if (membership_type) { sql += ' AND a.membership_type = ?'; params.push(membership_type); }
+    if (from_date) { sql += ' AND p.paid_on >= ?'; params.push(from_date); }
+    if (to_date) { sql += ' AND p.paid_on <= ?'; params.push(to_date); }
     sql += ' ORDER BY p.paid_on DESC, p.id DESC LIMIT 500';
     const [rows] = await pool.query(sql, params);
     res.json(rows);

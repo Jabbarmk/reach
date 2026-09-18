@@ -46,7 +46,10 @@ export default function MembershipCard({ app, photoUrl }) {
         </div>
       </div>
 
-      <div className="mcv-footer">REACH Pravasi Welfare Society</div>
+      <div className="mcv-footer">
+        <div>REACH Pravasi Welfare Society</div>
+        <div className="mcv-footer-site">www.reachpravasi.org</div>
+      </div>
     </div>
   );
 }

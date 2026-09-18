@@ -649,23 +649,44 @@ function PaymentsSummary({ rows }) {
   );
 }
 
+const MEMBERSHIP_TYPE_LABELS = { two_year: 'Two-Year ₹300', lifetime: 'Lifetime ₹2,000' };
+
 function ReceivedPaymentsTab({ isAdmin }) {
   const [rows, setRows] = useState(null);
   const [search, setSearch] = useState('');
   const [methodFilter, setMethodFilter] = useState('');
   const [collectedByFilter, setCollectedByFilter] = useState('');
   const [recordedByFilter, setRecordedByFilter] = useState('');
+  const [membershipTypeFilter, setMembershipTypeFilter] = useState('');
+  const [month, setMonth] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [methods, setMethods] = useState([]);
   const [users, setUsers] = useState([]);
   const [error, setError] = useState(null);
   const [editPayment, setEditPayment] = useState(null);
   const navigate = useNavigate();
 
+  // Month picker is a convenience over the same from/to range the date pickers use —
+  // picking a month fills from_date/to_date with that month's first and last day.
+  const onMonthChange = (value) => {
+    setMonth(value);
+    if (!value) return;
+    const [y, m] = value.split('-').map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
+    setFromDate(`${value}-01`);
+    setToDate(`${value}-${String(lastDay).padStart(2, '0')}`);
+  };
+  const onDateChange = (setter) => (value) => { setMonth(''); setter(value); };
+
   const filters = () => ({
     ...(search ? { search } : {}),
     ...(methodFilter ? { method: methodFilter } : {}),
     ...(collectedByFilter ? { collected_by: collectedByFilter } : {}),
     ...(recordedByFilter ? { recorded_by: recordedByFilter } : {}),
+    ...(membershipTypeFilter ? { membership_type: membershipTypeFilter } : {}),
+    ...(fromDate ? { from_date: fromDate } : {}),
+    ...(toDate ? { to_date: toDate } : {}),
   });
 
   const load = async () => {
@@ -686,7 +707,7 @@ function ReceivedPaymentsTab({ isAdmin }) {
     })();
     load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { load(); }, [methodFilter, collectedByFilter, recordedByFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [methodFilter, collectedByFilter, recordedByFilter, membershipTypeFilter, fromDate, toDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const userName = (username) => users.find((u) => u.username === username)?.name || username;
   const userLabel = (username) => {
@@ -706,12 +727,16 @@ function ReceivedPaymentsTab({ isAdmin }) {
     try { await api.deletePayment(p.id); load(); } catch (err) { setError(err.message); }
   };
 
-  const clearFilters = () => { setSearch(''); setMethodFilter(''); setCollectedByFilter(''); setRecordedByFilter(''); };
-  const filtersActive = methodFilter || collectedByFilter || recordedByFilter;
+  const clearFilters = () => {
+    setSearch(''); setMethodFilter(''); setCollectedByFilter(''); setRecordedByFilter('');
+    setMembershipTypeFilter(''); setMonth(''); setFromDate(''); setToDate('');
+  };
+  const filtersActive = methodFilter || collectedByFilter || recordedByFilter || membershipTypeFilter || fromDate || toDate;
 
   const PAYMENT_COLUMNS = [
     { label: 'Member', value: 'name' },
     { label: 'Membership ID', value: (p) => p.membership_id || p.reference_no },
+    { label: 'Plan', value: (p) => MEMBERSHIP_TYPE_LABELS[p.membership_type] || p.membership_type },
     { label: 'Amount', value: (p) => Number(p.amount) },
     { label: 'Method', value: 'method' },
     { label: 'Collected By', value: (p) => (p.collected_by ? userLabel(p.collected_by) : '') },
@@ -735,6 +760,22 @@ function ReceivedPaymentsTab({ isAdmin }) {
           <option value="">All Methods</option>
           {methods.map((m) => <option key={m} value={m}>{m}</option>)}
         </select>
+        <select value={membershipTypeFilter} onChange={(e) => setMembershipTypeFilter(e.target.value)}>
+          <option value="">All Membership Fees</option>
+          {Object.entries(MEMBERSHIP_TYPE_LABELS).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+        </select>
+        <input
+          type="month" value={month} onChange={(e) => onMonthChange(e.target.value)}
+          title="Filter by month" style={{ maxWidth: 150 }}
+        />
+        <input
+          type="date" value={fromDate} onChange={(e) => onDateChange(setFromDate)(e.target.value)}
+          title="From date" style={{ maxWidth: 150 }}
+        />
+        <input
+          type="date" value={toDate} onChange={(e) => onDateChange(setToDate)(e.target.value)}
+          title="To date" style={{ maxWidth: 150 }}
+        />
         <select value={collectedByFilter} onChange={(e) => setCollectedByFilter(e.target.value)}>
           <option value="">Collected By: Anyone</option>
           {users.map((u) => <option key={u.username} value={u.username}>{u.name} — {u.roleLabel}</option>)}
@@ -753,7 +794,7 @@ function ReceivedPaymentsTab({ isAdmin }) {
           <table className="apps">
             <thead>
               <tr>
-                <th>Member</th><th>Membership ID</th><th>Amount</th><th>Method</th>
+                <th>Member</th><th>Membership ID</th><th>Plan</th><th>Amount</th><th>Method</th>
                 <th>Collected By</th><th>Date</th><th>Recorded By</th><th>Receipt</th>
                 {isAdmin && <th style={{ width: 120 }}>Actions</th>}
               </tr>
@@ -763,6 +804,7 @@ function ReceivedPaymentsTab({ isAdmin }) {
                 <tr key={p.id} onClick={() => navigate(`/admin/applications/${p.application_id}`)}>
                   <td style={{ fontWeight: 600 }}>{p.name}</td>
                   <td style={{ color: 'var(--blue-800)', fontWeight: 700 }}>{p.membership_id || p.reference_no}</td>
+                  <td>{MEMBERSHIP_TYPE_LABELS[p.membership_type] || p.membership_type}</td>
                   <td style={{ fontWeight: 700 }}>₹{Number(p.amount).toLocaleString('en-IN')}</td>
                   <td>{p.method}</td>
                   <td>{p.collected_by ? userLabel(p.collected_by) : '—'}</td>
