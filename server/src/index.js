@@ -23,8 +23,17 @@ export const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const app = express();
+app.set('etag', false);
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
+
+// All API responses are dynamic and auth-gated (or query-dependent, like admin listings) —
+// never let a browser or intermediary proxy cache/304 them by path alone, ignoring the
+// querystring that actually distinguishes one filtered request from another.
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 
 app.use('/api', publicRoutes);
 app.use('/api/admin/users', userRoutes);
