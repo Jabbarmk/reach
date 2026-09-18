@@ -61,6 +61,7 @@ export default function MemberDashboard() {
   const [error, setError] = useState(null);
   const [editRequest, setEditRequest] = useState(null);
   const [editing, setEditing] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const [photoUrl, setPhotoUrl] = useState(null);
 
   const load = async () => {
@@ -115,22 +116,6 @@ export default function MemberDashboard() {
         {app.admin_note && <div className="alert info" style={{ marginTop: 12, marginBottom: 0 }}>Note from society office: {app.admin_note}</div>}
       </div>
 
-      <div className="card" style={{ marginBottom: 20 }}>
-        <h2 style={{ fontSize: 16, marginBottom: 12 }}>Personal Information</h2>
-        <div className="review-rows" style={{ padding: 0 }}>
-          <DetailRow label="Name" value={app.name} />
-          {PERSONAL_FIELDS.map((f) => <DetailRow key={f.k} label={f.label} value={app[f.k]} />)}
-        </div>
-      </div>
-
-      <div className="card" style={{ marginBottom: 20 }}>
-        <h2 style={{ fontSize: 16, marginBottom: 12 }}>{app.is_expat ? 'Expat Details' : 'Retired Details'}</h2>
-        <div className="review-rows" style={{ padding: 0 }}>
-          {(app.is_expat ? EXPAT_FIELDS : RETIRED_FIELDS).map((f) => <DetailRow key={f.k} label={f.label} value={app[f.k]} />)}
-          {COMMON_FIELDS.map((f) => <DetailRow key={f.k} label={f.label} value={app[f.k]} />)}
-        </div>
-      </div>
-
       {editRequest && editRequest.status !== 'Approved' && (
         <div className="alert" style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           {editRequestPill(editRequest.status)}
@@ -142,18 +127,48 @@ export default function MemberDashboard() {
         </div>
       )}
 
-      {editing ? (
-        <MemberEditForm
-          app={app}
-          onCancel={() => setEditing(false)}
-          onSubmitted={async () => { setEditing(false); await load(); }}
-        />
-      ) : (
+      {!showDetails && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
-          <button className="btn btn-outline btn-sm" onClick={() => setEditing(true)} disabled={hasPendingRequest}>
-            {hasPendingRequest ? 'Edit request pending review' : '✎ Edit My Details'}
-          </button>
+          <button className="btn btn-outline btn-sm" onClick={() => setShowDetails(true)}>View More Details →</button>
         </div>
+      )}
+
+      {showDetails && (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+            <button className="btn btn-outline btn-sm" onClick={() => { setShowDetails(false); setEditing(false); }}>← Back</button>
+          </div>
+
+          <div className="card" style={{ marginBottom: 20 }}>
+            <h2 style={{ fontSize: 16, marginBottom: 12 }}>Personal Information</h2>
+            <div className="review-rows" style={{ padding: 0 }}>
+              <DetailRow label="Name" value={app.name} />
+              {PERSONAL_FIELDS.map((f) => <DetailRow key={f.k} label={f.label} value={app[f.k]} />)}
+            </div>
+          </div>
+
+          <div className="card" style={{ marginBottom: 20 }}>
+            <h2 style={{ fontSize: 16, marginBottom: 12 }}>{app.is_expat ? 'Expat Details' : 'Retired Details'}</h2>
+            <div className="review-rows" style={{ padding: 0 }}>
+              {(app.is_expat ? EXPAT_FIELDS : RETIRED_FIELDS).map((f) => <DetailRow key={f.k} label={f.label} value={app[f.k]} />)}
+              {COMMON_FIELDS.map((f) => <DetailRow key={f.k} label={f.label} value={app[f.k]} />)}
+            </div>
+          </div>
+
+          {editing ? (
+            <MemberEditForm
+              app={app}
+              onCancel={() => setEditing(false)}
+              onSubmitted={async () => { setEditing(false); await load(); }}
+            />
+          ) : (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+              <button className="btn btn-outline btn-sm" onClick={() => setEditing(true)} disabled={hasPendingRequest}>
+                {hasPendingRequest ? 'Edit request pending review' : '✎ Edit My Details'}
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {app.membership_id && (
