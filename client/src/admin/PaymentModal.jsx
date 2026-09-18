@@ -50,9 +50,12 @@ export default function PaymentModal({ mode, app, payment, onClose, onDone }) {
     seenFees.add(Number(p.fee));
     dedupePlans.push(p);
   }
-  // The amount choice matches a specific plan's fee — if it's a different plan than the
-  // member actually registered under, verifying/saving this payment will switch their plan.
-  const selectedPlan = amountChoice !== 'other' ? dedupePlans.find((p) => String(p.fee) === amountChoice) : null;
+  // Informational only — recording a payment never changes the member's registered plan.
+  // If the amount doesn't match what they're registered under, flag it so the admin can
+  // fix the amount or, separately, change the plan via Members > Edit if that's intended.
+  const selectedPlan = amountChoice !== 'other'
+    ? dedupePlans.find((p) => String(p.fee) === amountChoice)
+    : dedupePlans.find((p) => String(p.fee) === String(Number(customAmount)));
   const planMismatch = selectedPlan && app?.membership_type && selectedPlan.code !== app.membership_type;
 
   const buildForm = () => {
@@ -63,7 +66,6 @@ export default function PaymentModal({ mode, app, payment, onClose, onDone }) {
     fd.append('paid_on', paidOn);
     if (note.trim()) fd.append('note', note.trim());
     if (receipt) fd.append('receipt', receipt);
-    if (planMismatch) fd.append('membership_type', selectedPlan.code);
     return fd;
   };
 
@@ -78,14 +80,6 @@ export default function PaymentModal({ mode, app, payment, onClose, onDone }) {
   const submitPayment = async () => {
     setError(null);
     if (!validate()) return;
-    if (planMismatch) {
-      const currentPlanName = plans.find((p) => p.code === app.membership_type)?.name || app.membership_type;
-      const ok = window.confirm(
-        `This amount matches "${selectedPlan.name}", not the registered plan "${currentPlanName}". ` +
-        `Continuing will change ${app?.name || 'this member'}'s membership plan to "${selectedPlan.name}". Continue?`
-      );
-      if (!ok) return;
-    }
     setBusy(true);
     try {
       if (mode === 'edit') {
@@ -128,7 +122,8 @@ export default function PaymentModal({ mode, app, payment, onClose, onDone }) {
             )}
             {planMismatch && (
               <div className="hint" style={{ color: 'var(--orange-500)', marginTop: 6 }}>
-                ⚠ This matches "{selectedPlan.name}" — saving will change {app?.name || 'this member'}'s registered plan to match.
+                ⚠ This amount matches "{selectedPlan.name}", not {app?.name || 'this member'}'s registered plan. The registered
+                plan will not change — if that's wrong, update it separately via Members &gt; Edit.
               </div>
             )}
           </div>

@@ -506,7 +506,6 @@ router.post(
   async (req, res, next) => {
     const { application_id, amount, method, paid_on, note } = req.body || {};
     const collected_by = req.adminUser.role === 'admin' ? req.body?.collected_by : req.admin.username;
-    const membershipTypeChange = req.adminUser.role === 'admin' ? req.body?.membership_type : undefined;
     const amt = Number(amount);
     if (!application_id || !(amt > 0)) return res.status(400).json({ error: 'A valid amount is required' });
     if (!method?.trim()) return res.status(400).json({ error: 'Payment method is required' });
@@ -521,10 +520,6 @@ router.post(
       const app = apps[0];
       const [existing] = await conn.query('SELECT id FROM payments WHERE application_id = ?', [app.id]);
       if (existing.length) { await conn.rollback(); return res.status(400).json({ error: 'A payment is already recorded for this member — edit it instead' }); }
-
-      if (membershipTypeChange && membershipTypeChange !== app.membership_type) {
-        await changeMembershipPlan(conn, app, membershipTypeChange, req.admin.username);
-      }
 
       const receiptDocId = req.file ? await insertReceiptDoc(conn, app.id, req.file) : null;
       const receiptNumber = await generateReceiptNumber(conn);
@@ -577,7 +572,7 @@ router.put('/payments/:id', receiptUpload.single('receipt'), requireScreen('paym
   const conn = await pool.getConnection();
   try {
     if (req.adminUser.role !== 'admin') { conn.release(); return res.status(403).json({ error: 'Only administrators can edit payments' }); }
-    const { amount, method, paid_on, note, collected_by, membership_type } = req.body || {};
+    const { amount, method, paid_on, note, collected_by } = req.body || {};
     await conn.beginTransaction();
     const [rows] = await conn.query('SELECT * FROM payments WHERE id = ? FOR UPDATE', [req.params.id]);
     if (!rows.length) { await conn.rollback(); return res.status(404).json({ error: 'Payment not found' }); }
@@ -585,13 +580,6 @@ router.put('/payments/:id', receiptUpload.single('receipt'), requireScreen('paym
     const amt = amount !== undefined ? Number(amount) : Number(p.amount);
     if (!(amt > 0)) { await conn.rollback(); return res.status(400).json({ error: 'A valid amount is required' }); }
     if (collected_by !== undefined && !collected_by.trim()) { await conn.rollback(); return res.status(400).json({ error: 'Cash Collected By is required' }); }
-
-    if (membership_type) {
-      const [apps] = await conn.query('SELECT * FROM applications WHERE id = ? FOR UPDATE', [p.application_id]);
-      if (apps.length && membership_type !== apps[0].membership_type) {
-        await changeMembershipPlan(conn, apps[0], membership_type, req.admin.username);
-      }
-    }
 
     let receiptDocId = p.receipt_doc_id;
     if (req.file) {
