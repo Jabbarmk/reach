@@ -58,6 +58,7 @@ router.get('/applications', requireScreen('members'), async (req, res, next) => 
     }
     let sql = `SELECT a.id, a.reference_no, a.membership_id, a.membership_type, a.membership_fee, a.name, a.place,
                       a.panchayath, a.working_country, a.is_expat, a.status, a.payment_status, a.aadhaar_number,
+                      a.email, a.whatsapp_number, a.phone_abroad, a.phone_india, a.home_contact_number,
                       a.created_at, a.deleted_at,
                       (SELECT d.id FROM documents d WHERE d.application_id = a.id AND d.doc_type = 'photo' LIMIT 1) AS photo_doc_id
                FROM applications a WHERE a.deleted_at IS ${showDeleted ? 'NOT NULL' : 'NULL'}`;
