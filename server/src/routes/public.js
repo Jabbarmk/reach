@@ -132,6 +132,7 @@ async function loadFormConfig() {
   const [optionRows] = await pool.query('SELECT list_key, value FROM option_lists ORDER BY list_key, sort_order, id');
   const options = {};
   for (const row of optionRows) (options[row.list_key] ||= []).push(row.value);
+  if (options.panchayath) options.panchayath.sort((a, b) => a.localeCompare(b));
   const registration = await getRegistrationStatus();
   const [declarations] = await pool.query('SELECT id, text FROM declarations ORDER BY sort_order, id');
   return { fields, plans, options, registration, declarations };

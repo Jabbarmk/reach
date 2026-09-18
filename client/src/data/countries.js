@@ -83,17 +83,16 @@ export const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 // All local bodies of Wayanad District, Kerala.
 export const WAYANAD_LOCAL_BODIES = [
-  'Kalpetta Municipality',
-  'Mananthavady Municipality',
-  'Sulthan Bathery Municipality',
   'Ambalavayal Grama Panchayat',
   'Edavaka Grama Panchayat',
+  'Kalpetta Municipality',
   'Kaniyambetta Grama Panchayat',
   'Kottathara Grama Panchayat',
+  'Mananthavady Municipality',
   'Meenangadi Grama Panchayat',
   'Meppadi Grama Panchayat',
-  'Muppainad Grama Panchayat',
   'Mullankolly Grama Panchayat',
+  'Muppainad Grama Panchayat',
   'Muttil Grama Panchayat',
   'Nenmeni Grama Panchayat',
   'Noolpuzha Grama Panchayat',
@@ -102,6 +101,7 @@ export const WAYANAD_LOCAL_BODIES = [
   'Poothadi Grama Panchayat',
   'Pozhuthana Grama Panchayat',
   'Pulpally Grama Panchayat',
+  'Sulthan Bathery Municipality',
   'Thariode Grama Panchayat',
   'Thavinjal Grama Panchayat',
   'Thirunelly Grama Panchayat',
