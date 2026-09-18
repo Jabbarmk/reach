@@ -17,6 +17,44 @@ const statusPill = (s) => {
   return <span className={`pill ${map[s] || 'grey'}`}>{s}</span>;
 };
 
+const PERSONAL_FIELDS = [
+  { k: 'father_name', label: "Father's Name" },
+  { k: 'house_name', label: 'House Name' },
+  { k: 'place', label: 'Place' },
+  { k: 'post_office', label: 'Post Office' },
+  { k: 'panchayath', label: 'Panchayath/Municipality' },
+  { k: 'blood_group', label: 'Blood Group' },
+  { k: 'date_of_birth', label: 'Date of Birth' },
+  { k: 'qualification', label: 'Qualification' },
+  { k: 'aadhaar_number', label: 'ID Card Number' },
+];
+
+const EXPAT_FIELDS = [
+  { k: 'phone_abroad', label: 'Phone (Abroad)' },
+  { k: 'home_contact_number', label: 'Home Contact Number' },
+  { k: 'id_card_number_abroad', label: 'ID Number (Abroad)' },
+  { k: 'working_country', label: 'Working Country' },
+  { k: 'city', label: 'City' },
+];
+
+const RETIRED_FIELDS = [
+  { k: 'retired_year', label: 'Retired Year' },
+  { k: 'phone_india', label: 'Phone (India)' },
+];
+
+const COMMON_FIELDS = [
+  { k: 'whatsapp_number', label: 'WhatsApp' },
+  { k: 'email', label: 'E-mail' },
+  { k: 'current_job', label: 'Current Job' },
+  { k: 'years_abroad', label: 'Years Abroad' },
+  { k: 'emergency_name', label: 'Friend/Family Name' },
+  { k: 'emergency_phone', label: 'Friend/Family Phone' },
+];
+
+const DetailRow = ({ label, value }) => (
+  <div className="review-row"><div className="k">{label}</div><div className="v">{value || '—'}</div></div>
+);
+
 export default function MemberDashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
@@ -75,6 +113,22 @@ export default function MemberDashboard() {
           <div className="review-row"><div className="k">E-mail</div><div className="v">{app.email}</div></div>
         </div>
         {app.admin_note && <div className="alert info" style={{ marginTop: 12, marginBottom: 0 }}>Note from society office: {app.admin_note}</div>}
+      </div>
+
+      <div className="card" style={{ marginBottom: 20 }}>
+        <h2 style={{ fontSize: 16, marginBottom: 12 }}>Personal Information</h2>
+        <div className="review-rows" style={{ padding: 0 }}>
+          <DetailRow label="Name" value={app.name} />
+          {PERSONAL_FIELDS.map((f) => <DetailRow key={f.k} label={f.label} value={app[f.k]} />)}
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 20 }}>
+        <h2 style={{ fontSize: 16, marginBottom: 12 }}>{app.is_expat ? 'Expat Details' : 'Retired Details'}</h2>
+        <div className="review-rows" style={{ padding: 0 }}>
+          {(app.is_expat ? EXPAT_FIELDS : RETIRED_FIELDS).map((f) => <DetailRow key={f.k} label={f.label} value={app[f.k]} />)}
+          {COMMON_FIELDS.map((f) => <DetailRow key={f.k} label={f.label} value={app[f.k]} />)}
+        </div>
       </div>
 
       {editRequest && editRequest.status !== 'Approved' && (
