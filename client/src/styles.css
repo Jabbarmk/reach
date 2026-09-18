@@ -789,6 +789,7 @@ img { max-width: 100%; }
 .btn-ghost { background: transparent; color: var(--muted); }
 .btn-ghost:hover { color: var(--red-600); background: var(--red-50); }
 .btn-sm { padding: 7px 14px; font-size: 13px; border-radius: 8px; }
+.btn-lg { padding: 15px 32px; font-size: 16px; border-radius: 12px; }
 .wizard-nav { display: flex; justify-content: space-between; margin-top: 26px; gap: 12px; }
 
 .reg-sections { display: flex; flex-direction: column; gap: 22px; }

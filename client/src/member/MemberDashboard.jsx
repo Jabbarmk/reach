@@ -128,16 +128,29 @@ export default function MemberDashboard() {
       )}
 
       {!showDetails && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
-          <button className="btn btn-outline btn-sm" onClick={() => setShowDetails(true)}>View More Details →</button>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+          <button className="btn btn-primary btn-lg" onClick={() => setShowDetails(true)}>View More Details →</button>
         </div>
       )}
 
       {showDetails && (
         <>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
             <button className="btn btn-outline btn-sm" onClick={() => { setShowDetails(false); setEditing(false); }}>← Back</button>
+            {!editing && (
+              <button className="btn btn-primary btn-lg" onClick={() => setEditing(true)} disabled={hasPendingRequest}>
+                {hasPendingRequest ? 'Edit request pending review' : '✎ Edit My Details'}
+              </button>
+            )}
           </div>
+
+          {editing && (
+            <MemberEditForm
+              app={app}
+              onCancel={() => setEditing(false)}
+              onSubmitted={async () => { setEditing(false); await load(); }}
+            />
+          )}
 
           <div className="card" style={{ marginBottom: 20 }}>
             <h2 style={{ fontSize: 16, marginBottom: 12 }}>Personal Information</h2>
@@ -154,20 +167,6 @@ export default function MemberDashboard() {
               {COMMON_FIELDS.map((f) => <DetailRow key={f.k} label={f.label} value={app[f.k]} />)}
             </div>
           </div>
-
-          {editing ? (
-            <MemberEditForm
-              app={app}
-              onCancel={() => setEditing(false)}
-              onSubmitted={async () => { setEditing(false); await load(); }}
-            />
-          ) : (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
-              <button className="btn btn-outline btn-sm" onClick={() => setEditing(true)} disabled={hasPendingRequest}>
-                {hasPendingRequest ? 'Edit request pending review' : '✎ Edit My Details'}
-              </button>
-            </div>
-          )}
         </>
       )}
 
