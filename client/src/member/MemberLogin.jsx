@@ -59,11 +59,10 @@ export default function MemberLogin() {
 
           <div className="afield">
             <label htmlFor="ml-member-id">Member ID</label>
-            <div className="a-inputwrap">
-              <span className="a-ico">🪪</span>
+            <div className="a-inputwrap no-icon">
               <input
                 id="ml-member-id" type="text" value={memberId}
-                autoComplete="off" placeholder="REACH-2026-0001"
+                autoComplete="off" placeholder="REACH0005"
                 onChange={(e) => setMemberId(e.target.value)}
               />
             </div>

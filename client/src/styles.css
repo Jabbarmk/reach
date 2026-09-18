@@ -1393,6 +1393,7 @@ table.apps.statement td.stmt-debit { color: var(--red-600); }
 }
 .a-inputwrap input:focus { border-color: var(--blue-600); background: #fff; box-shadow: 0 0 0 3.5px var(--blue-100); }
 .a-inputwrap input:disabled { background: #eef1f6; color: var(--muted); cursor: not-allowed; }
+.a-inputwrap.no-icon input { padding-left: 14px; }
 .a-eye {
   position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
   background: none; border: none; font-size: 15px; padding: 6px 8px;
