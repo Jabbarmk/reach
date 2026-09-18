@@ -665,6 +665,10 @@ function ReceivedPaymentsTab({ isAdmin }) {
   const [error, setError] = useState(null);
   const [editPayment, setEditPayment] = useState(null);
   const navigate = useNavigate();
+  // Guards against out-of-order responses: e.g. Search fires a slower date-filtered
+  // request, then a dropdown filter fires a faster one — without this, the slower
+  // response could land last and silently overwrite the newer, more-filtered result.
+  const requestSeq = useRef(0);
 
   const filters = () => ({
     ...(search ? { search } : {}),
@@ -679,8 +683,13 @@ function ReceivedPaymentsTab({ isAdmin }) {
   const load = async () => {
     setError(null);
     if (fromDate && toDate && fromDate > toDate) { setError('"From" date must be before "To" date'); setRows([]); return; }
-    try { setRows(await api.listPayments(filters())); }
-    catch (err) {
+    const seq = ++requestSeq.current;
+    try {
+      const data = await api.listPayments(filters());
+      if (seq !== requestSeq.current) return; // a newer request superseded this one
+      setRows(data);
+    } catch (err) {
+      if (seq !== requestSeq.current) return;
       if (err.status === 401) { setToken(null); navigate('/admin/login'); return; }
       setError(err.message);
     }
