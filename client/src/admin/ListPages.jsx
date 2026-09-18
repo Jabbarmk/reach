@@ -658,7 +658,6 @@ function ReceivedPaymentsTab({ isAdmin }) {
   const [collectedByFilter, setCollectedByFilter] = useState('');
   const [recordedByFilter, setRecordedByFilter] = useState('');
   const [membershipTypeFilter, setMembershipTypeFilter] = useState('');
-  const [month, setMonth] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [methods, setMethods] = useState([]);
@@ -666,18 +665,6 @@ function ReceivedPaymentsTab({ isAdmin }) {
   const [error, setError] = useState(null);
   const [editPayment, setEditPayment] = useState(null);
   const navigate = useNavigate();
-
-  // Month picker is a convenience over the same from/to range the date pickers use —
-  // picking a month fills from_date/to_date with that month's first and last day.
-  const onMonthChange = (value) => {
-    setMonth(value);
-    if (!value) return;
-    const [y, m] = value.split('-').map(Number);
-    const lastDay = new Date(y, m, 0).getDate();
-    setFromDate(`${value}-01`);
-    setToDate(`${value}-${String(lastDay).padStart(2, '0')}`);
-  };
-  const onDateChange = (setter) => (value) => { setMonth(''); setter(value); };
 
   const filters = () => ({
     ...(search ? { search } : {}),
@@ -691,6 +678,7 @@ function ReceivedPaymentsTab({ isAdmin }) {
 
   const load = async () => {
     setError(null);
+    if (fromDate && toDate && fromDate > toDate) { setError('"From" date must be before "To" date'); setRows([]); return; }
     try { setRows(await api.listPayments(filters())); }
     catch (err) {
       if (err.status === 401) { setToken(null); navigate('/admin/login'); return; }
@@ -707,7 +695,7 @@ function ReceivedPaymentsTab({ isAdmin }) {
     })();
     load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { load(); }, [methodFilter, collectedByFilter, recordedByFilter, membershipTypeFilter, fromDate, toDate]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [methodFilter, collectedByFilter, recordedByFilter, membershipTypeFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const userName = (username) => users.find((u) => u.username === username)?.name || username;
   const userLabel = (username) => {
@@ -729,7 +717,8 @@ function ReceivedPaymentsTab({ isAdmin }) {
 
   const clearFilters = () => {
     setSearch(''); setMethodFilter(''); setCollectedByFilter(''); setRecordedByFilter('');
-    setMembershipTypeFilter(''); setMonth(''); setFromDate(''); setToDate('');
+    setMembershipTypeFilter(''); setFromDate(''); setToDate('');
+    load();
   };
   const filtersActive = methodFilter || collectedByFilter || recordedByFilter || membershipTypeFilter || fromDate || toDate;
 
@@ -764,18 +753,22 @@ function ReceivedPaymentsTab({ isAdmin }) {
           <option value="">All Membership Fees</option>
           {Object.entries(MEMBERSHIP_TYPE_LABELS).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
         </select>
-        <input
-          type="month" value={month} onChange={(e) => onMonthChange(e.target.value)}
-          title="Filter by month" style={{ maxWidth: 150 }}
-        />
-        <input
-          type="date" value={fromDate} onChange={(e) => onDateChange(setFromDate)(e.target.value)}
-          title="From date" style={{ maxWidth: 150 }}
-        />
-        <input
-          type="date" value={toDate} onChange={(e) => onDateChange(setToDate)(e.target.value)}
-          title="To date" style={{ maxWidth: 150 }}
-        />
+        <div className="date-range-field">
+          <label htmlFor="pay-from-date">From date</label>
+          <input
+            id="pay-from-date" type="date" value={fromDate} max={toDate || undefined}
+            onChange={(e) => setFromDate(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && load()}
+          />
+        </div>
+        <div className="date-range-field">
+          <label htmlFor="pay-to-date">To date</label>
+          <input
+            id="pay-to-date" type="date" value={toDate} min={fromDate || undefined}
+            onChange={(e) => setToDate(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && load()}
+          />
+        </div>
         <select value={collectedByFilter} onChange={(e) => setCollectedByFilter(e.target.value)}>
           <option value="">Collected By: Anyone</option>
           {users.map((u) => <option key={u.username} value={u.username}>{u.name} — {u.roleLabel}</option>)}

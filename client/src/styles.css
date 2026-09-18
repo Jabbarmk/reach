@@ -1242,6 +1242,9 @@ img { max-width: 100%; }
 }
 .toolbar input { flex: 1; min-width: 200px; }
 .toolbar input:focus, .toolbar select:focus { border-color: var(--blue-600); }
+.date-range-field { display: flex; flex-direction: column; gap: 4px; }
+.date-range-field label { font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: .2px; }
+.date-range-field input[type="date"] { flex: none; min-width: 0; width: 152px; }
 
 .table-card { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
 .table-scroll { overflow-x: auto; }
