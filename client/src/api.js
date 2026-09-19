@@ -141,7 +141,7 @@ export const api = {
   updatePlan: (id, p) => request(`/api/admin/form/plans/${id}`, { method: 'PUT', json: p }),
   deletePlan: (id) => request(`/api/admin/form/plans/${id}`, { method: 'DELETE' }),
   // Member portal
-  memberLogin: (email, memberId) => request('/api/member/login', { method: 'POST', json: { email, member_id: memberId } }),
+  memberLogin: (email, memberId, dateOfBirth) => request('/api/member/login', { method: 'POST', json: { email, member_id: memberId, date_of_birth: dateOfBirth } }),
   memberMe: () => request('/api/member/me', { memberAuth: true }),
   memberPhotoUrl: () => '/api/member/photo',
   memberGetEditRequest: () => request('/api/member/edit-request', { memberAuth: true }),

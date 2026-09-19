@@ -5,6 +5,7 @@ import { api, setMemberToken } from '../api.js';
 export default function MemberLogin() {
   const [email, setEmail] = useState('');
   const [memberId, setMemberId] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
@@ -14,7 +15,7 @@ export default function MemberLogin() {
     setBusy(true);
     setError(null);
     try {
-      const res = await api.memberLogin(email.trim(), memberId.trim());
+      const res = await api.memberLogin(email.trim(), memberId.trim(), dateOfBirth);
       setMemberToken(res.token);
       navigate('/member');
     } catch (err) {
@@ -41,7 +42,7 @@ export default function MemberLogin() {
 
         <form className="alogin-form" onSubmit={login}>
           <h3>Member Sign In</h3>
-          <p className="hint">Enter your registered e-mail and Member ID.</p>
+          <p className="hint">Please verify below details and login.</p>
 
           {error && <div className="alogin-error">⚠ {error}</div>}
 
@@ -68,7 +69,18 @@ export default function MemberLogin() {
             </div>
           </div>
 
-          <button className="btn btn-primary alogin-btn" disabled={busy || !email || !memberId}>
+          <div className="afield">
+            <label htmlFor="ml-dob">Date of Birth</label>
+            <div className="a-inputwrap no-icon">
+              <input
+                id="ml-dob" type="date" value={dateOfBirth}
+                autoComplete="off" max={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setDateOfBirth(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <button className="btn btn-primary alogin-btn" disabled={busy || !email || !memberId || !dateOfBirth}>
             {busy ? <><span className="spinner" style={{ borderTopColor: '#fff', borderColor: 'rgba(255,255,255,.35)', borderTopWidth: 2.5 }} /> Signing in…</> : 'Sign In →'}
           </button>
 

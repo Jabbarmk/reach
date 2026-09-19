@@ -28,19 +28,22 @@ const EDITABLE_FIELDS = [
   'current_job', 'years_abroad', 'emergency_name', 'emergency_phone',
 ];
 
-// Member enters their registered e-mail and Member ID (membership_id). Both must match
-// the same application, and the membership must be Active.
+// Member enters their registered e-mail, Member ID (membership_id) and date of birth.
+// All three must match the same application, and the membership must be Active.
 router.post('/login', async (req, res, next) => {
   try {
     const email = String(req.body?.email || '').trim();
     const memberId = String(req.body?.member_id || '').trim();
-    if (!email || !memberId) return res.status(400).json({ error: 'E-mail and Member ID are required' });
+    const dateOfBirth = String(req.body?.date_of_birth || '').trim();
+    if (!email || !memberId || !dateOfBirth) {
+      return res.status(400).json({ error: 'E-mail, Member ID and Date of Birth are required' });
+    }
 
     const [rows] = await pool.query(
-      'SELECT id, name, status FROM applications WHERE email = ? AND membership_id = ? AND deleted_at IS NULL LIMIT 1',
-      [email, memberId]
+      'SELECT id, name, status FROM applications WHERE email = ? AND membership_id = ? AND date_of_birth = ? AND deleted_at IS NULL LIMIT 1',
+      [email, memberId, dateOfBirth]
     );
-    if (!rows.length) return res.status(401).json({ error: 'E-mail and Member ID do not match our records' });
+    if (!rows.length) return res.status(401).json({ error: 'E-mail, Member ID and Date of Birth do not match our records' });
     const app = rows[0];
     if (app.status !== 'Active') {
       return res.status(403).json({ error: 'Your membership is not active yet. Please contact the society office.' });
