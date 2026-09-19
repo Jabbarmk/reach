@@ -40,16 +40,15 @@ function SummaryCards({ s, filtered }) {
   );
 }
 
-// Compact bar list used on the Overview tab (top N groups by registrations).
-function BarCard({ title, rows, labelKey, onPick, limit = 8, empty }) {
-  const top = rows.slice(0, limit);
-  const max = top[0]?.registrations || 1;
+// Bar list used on the Overview tab (all groups, by registrations).
+function BarCard({ title, rows, labelKey, onPick, empty }) {
+  const max = rows[0]?.registrations || 1;
   return (
     <div className="ovr-country-card rep-bar-card">
       <h2>{title}</h2>
-      {top.length === 0 ? <div className="empty-note" style={{ padding: 18 }}>{empty}</div> : (
+      {rows.length === 0 ? <div className="empty-note" style={{ padding: 18 }}>{empty}</div> : (
         <div className="ovr-country-list">
-          {top.map((r) => (
+          {rows.map((r) => (
             <div className="ovr-country-row rep-bar-row" key={r[labelKey]} onClick={() => onPick(r[labelKey])} title="Click to filter the report by this group">
               <span className="ovr-country-name">{r[labelKey]}</span>
               <div className="ovr-country-bar"><div className="ovr-country-fill" style={{ width: `${(r.registrations / max) * 100}%` }} /></div>
@@ -59,7 +58,6 @@ function BarCard({ title, rows, labelKey, onPick, limit = 8, empty }) {
           ))}
         </div>
       )}
-      {rows.length > limit && <div className="rep-more">+ {rows.length - limit} more — see the full table</div>}
     </div>
   );
 }
