@@ -188,6 +188,13 @@ router.post('/edit-request', requireMember, photoUpload.single('photo'), async (
         if (dup.length) { cleanupUpload(); return res.status(400).json({ error: 'This WhatsApp number is already registered to another member.' }); }
       }
     }
+    if (changes.panchayath) {
+      const [validPanchayaths] = await pool.query("SELECT value FROM option_lists WHERE list_key = 'panchayath'");
+      if (!validPanchayaths.some((r) => r.value === changes.panchayath)) {
+        cleanupUpload();
+        return res.status(400).json({ error: 'Panchayath/Municipality must be selected from the list' });
+      }
+    }
 
     if (!Object.keys(changes).length && !req.file) {
       cleanupUpload();

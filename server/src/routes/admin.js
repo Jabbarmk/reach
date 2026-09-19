@@ -254,6 +254,12 @@ router.put('/applications/:id', requireScreen('members'), async (req, res, next)
     if (updates.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updates.email)) {
       return res.status(400).json({ error: 'E-mail is invalid' });
     }
+    if (updates.panchayath) {
+      const [validPanchayaths] = await pool.query("SELECT value FROM option_lists WHERE list_key = 'panchayath'");
+      if (!validPanchayaths.some((r) => r.value === updates.panchayath)) {
+        return res.status(400).json({ error: 'Panchayath/Municipality must be selected from the list' });
+      }
+    }
     if (!Object.keys(updates).length && !b.membership_type) return res.status(400).json({ error: 'Nothing to update' });
 
     if (Object.keys(updates).length) {

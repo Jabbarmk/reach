@@ -223,6 +223,9 @@ router.post(
       reqText('place', d.place, 'Place');
       reqText('post_office', d.post_office, 'Post office');
       reqText('panchayath', d.panchayath, 'Panchayath/Municipality');
+      if (d.panchayath && !(cfg.options.panchayath || []).includes(d.panchayath)) {
+        errors.push(`${label('panchayath', 'Panchayath/Municipality')} must be selected from the list`);
+      }
       reqText('blood_group', d.blood_group, 'Blood group');
       reqText('qualification', d.qualification, 'Qualification');
 
