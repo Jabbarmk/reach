@@ -204,10 +204,22 @@ router.delete('/applications/:id/purge', requireScreen('members'), async (req, r
 
 const EDITABLE_FIELDS = [
   'name', 'father_name', 'house_name', 'place', 'post_office', 'panchayath', 'blood_group',
-  'date_of_birth', 'aadhaar_number', 'qualification', 'phone_abroad', 'home_contact_number', 'id_card_number_abroad',
+  'date_of_birth', 'aadhaar_number', 'qualification', 'is_expat', 'phone_abroad', 'home_contact_number', 'id_card_number_abroad',
   'working_country', 'city', 'retired_year', 'phone_india', 'whatsapp_number', 'email',
   'current_job', 'years_abroad', 'emergency_name', 'emergency_phone',
 ];
+
+const EXPAT_ONLY_FIELDS = ['phone_abroad', 'home_contact_number', 'id_card_number_abroad', 'working_country', 'city'];
+const RETIRED_ONLY_FIELDS = ['retired_year', 'phone_india'];
+
+// When is_expat flips, null out whichever branch's fields (expat vs retired) no longer
+// applies, so switching a member doesn't leave stale data from their old status behind.
+function clearOppositeBranch(updates, wasExpat, isNowExpat) {
+  if (wasExpat === isNowExpat) return;
+  for (const key of (isNowExpat ? RETIRED_ONLY_FIELDS : EXPAT_ONLY_FIELDS)) {
+    if (updates[key] === undefined) updates[key] = null;
+  }
+}
 
 const photoUpload = multer({
   storage: multer.diskStorage({
@@ -243,6 +255,7 @@ router.put('/applications/:id', requireScreen('members'), async (req, res, next)
     for (const key of EDITABLE_FIELDS) {
       if (b[key] === undefined) continue;
       if (key === 'years_abroad') { updates[key] = b[key] === '' ? 0 : Math.round(Number(b[key])) || 0; continue; }
+      if (key === 'is_expat') { updates[key] = (b[key] === true || b[key] === 'true' || b[key] === '1' || b[key] === 1) ? 1 : 0; continue; }
       updates[key] = b[key] === '' ? null : b[key];
     }
     if (updates.name !== undefined && !String(updates.name || '').trim()) {
@@ -259,6 +272,9 @@ router.put('/applications/:id', requireScreen('members'), async (req, res, next)
       if (!validPanchayaths.some((r) => r.value === updates.panchayath)) {
         return res.status(400).json({ error: 'Panchayath/Municipality must be selected from the list' });
       }
+    }
+    if (updates.is_expat !== undefined) {
+      clearOppositeBranch(updates, Boolean(app.is_expat), Boolean(updates.is_expat));
     }
     if (!Object.keys(updates).length && !b.membership_type) return res.status(400).json({ error: 'Nothing to update' });
 

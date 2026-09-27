@@ -122,6 +122,20 @@ function MemberEditModal({ id, onClose, onSaved }) {
 
   const set = (k, v) => setApp((p) => ({ ...p, [k]: v }));
 
+  const toggleExpat = (isExpat) => {
+    setApp((prev) => ({
+      ...prev,
+      is_expat: isExpat,
+      phone_abroad: isExpat ? prev.phone_abroad : '',
+      home_contact_number: isExpat ? prev.home_contact_number : '',
+      id_card_number_abroad: isExpat ? prev.id_card_number_abroad : '',
+      working_country: isExpat ? prev.working_country : '',
+      city: isExpat ? prev.city : '',
+      retired_year: isExpat ? '' : prev.retired_year,
+      phone_india: isExpat ? '' : prev.phone_india,
+    }));
+  };
+
   const save = async () => {
     setError(null);
     if (app.membership_type !== original.membership_type) {
@@ -143,6 +157,7 @@ function MemberEditModal({ id, onClose, onSaved }) {
       ];
       keys.forEach((k) => { payload[k] = app[k] ?? ''; });
       if (app.membership_type !== original.membership_type) payload.membership_type = app.membership_type;
+      if (Boolean(app.is_expat) !== Boolean(original.is_expat)) payload.is_expat = Boolean(app.is_expat);
       await api.updateApplication(id, payload);
       onSaved();
     } catch (err) { setError(err.message); setBusy(false); }
@@ -198,6 +213,18 @@ function MemberEditModal({ id, onClose, onSaved }) {
               <div className="field">
                 <label>Date of Birth</label>
                 <input type="date" value={app.date_of_birth ?? ''} onChange={(e) => set('date_of_birth', e.target.value)} />
+              </div>
+              <div className="field">
+                <label>Status</label>
+                <select value={app.is_expat ? 'expat' : 'retired'} onChange={(e) => toggleExpat(e.target.value === 'expat')}>
+                  <option value="expat">Expat</option>
+                  <option value="retired">Retired / Returned</option>
+                </select>
+                {Boolean(app.is_expat) !== Boolean(original.is_expat) && (
+                  <div className="hint" style={{ color: 'var(--orange-500)', marginTop: 4 }}>
+                    ⚠ Switching clears the {app.is_expat ? 'Retired' : 'Expat'}-only fields below — fill in the new ones before saving.
+                  </div>
+                )}
               </div>
               {app.is_expat ? (
                 <>

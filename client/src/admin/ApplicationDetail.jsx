@@ -146,11 +146,20 @@ export default function ApplicationDetail() {
 
   const startEdit = () => {
     const app = data.application;
-    const form = {};
+    const form = { is_expat: Boolean(app.is_expat) };
     for (const k of ALL_EDIT_FIELDS) form[k] = app[k] ?? '';
     setEditForm(form);
     setEditPhoto(null);
     setEditing(true);
+  };
+
+  const toggleExpat = (isExpat) => {
+    setEditForm((prev) => {
+      const next = { ...prev, is_expat: isExpat };
+      for (const f of EXPAT_FIELDS) next[f.k] = isExpat ? prev[f.k] : '';
+      for (const f of RETIRED_FIELDS) next[f.k] = isExpat ? '' : prev[f.k];
+      return next;
+    });
   };
 
   const cancelEdit = () => {
@@ -287,10 +296,22 @@ export default function ApplicationDetail() {
           </div>
 
           <div className="review-block" style={{ background: '#fff' }}>
-            <div className="rb-head"><h4>{app.is_expat ? 'Expat Details' : 'Retired / Returned Details'}</h4><span /></div>
+            <div className="rb-head"><h4>{(editing ? editForm.is_expat : app.is_expat) ? 'Expat Details' : 'Retired / Returned Details'}</h4><span /></div>
             {editing ? (
               <div style={{ padding: '4px 16px 16px' }}>
-                {(app.is_expat ? EXPAT_FIELDS : RETIRED_FIELDS).map((f) => (
+                <div className="field" style={{ marginBottom: 10, maxWidth: 320 }}>
+                  <label>Status</label>
+                  <select value={editForm.is_expat ? 'expat' : 'retired'} onChange={(e) => toggleExpat(e.target.value === 'expat')}>
+                    <option value="expat">Expat</option>
+                    <option value="retired">Retired / Returned</option>
+                  </select>
+                  {editForm.is_expat !== Boolean(app.is_expat) && (
+                    <div className="hint" style={{ color: 'var(--orange-500)', marginTop: 6 }}>
+                      ⚠ Switching clears the {editForm.is_expat ? 'Retired' : 'Expat'}-only fields below — fill in the new ones before saving.
+                    </div>
+                  )}
+                </div>
+                {(editForm.is_expat ? EXPAT_FIELDS : RETIRED_FIELDS).map((f) => (
                   <EditRow key={f.k} k={f.k} label={f.label} type={f.type} value={editForm[f.k]} onChange={setField} />
                 ))}
                 {COMMON_FIELDS.map((f) => (
