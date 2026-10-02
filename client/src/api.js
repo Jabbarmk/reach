@@ -42,6 +42,20 @@ export const api = {
   login: (username, password) => request('/api/admin/login', { method: 'POST', json: { username, password } }),
   listApplications: (params) => request(`/api/admin/applications?${new URLSearchParams(params)}`),
   stats: () => request('/api/admin/applications/stats'),
+  memberExportFields: () => request('/api/admin/applications/export-fields'),
+  exportMembers: async (payload) => {
+    const res = await fetch('/api/admin/applications/export', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      let msg = `Export failed (${res.status})`;
+      try { msg = (await res.json()).error || msg; } catch { /* non-json */ }
+      throw new Error(msg);
+    }
+    return res.blob();
+  },
   getApplication: (id) => request(`/api/admin/applications/${id}`),
   action: (id, action, note) => request(`/api/admin/applications/${id}/action`, { method: 'POST', json: { action, note } }),
   deleteApplication: (id) => request(`/api/admin/applications/${id}`, { method: 'DELETE' }),

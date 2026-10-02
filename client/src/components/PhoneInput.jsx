@@ -3,7 +3,9 @@ import { COUNTRIES } from '../data/countries.js';
 /** value = { dial: '+91', number: '9876543210' } */
 export default function PhoneInput({ label, required = true, value, onChange, error, lockDial = false, excludeDial = [], sameAs, onSameAs, sameAsChecked }) {
   const v = value || { dial: '+91', number: '' };
-  const options = excludeDial.length ? COUNTRIES.filter((c) => !excludeDial.includes(c.dial)) : COUNTRIES;
+  const allowed = excludeDial.length ? COUNTRIES.filter((c) => !excludeDial.includes(c.dial)) : COUNTRIES;
+  // India (+91) is pinned first so it's always one tap away, e.g. for an Expat's family back home.
+  const options = [...allowed.filter((c) => c.dial === '+91'), ...allowed.filter((c) => c.dial !== '+91')];
   return (
     <div className={`field ${error ? 'invalid' : ''}`}>
       <label>{label} {required && <span className="req">*</span>}</label>

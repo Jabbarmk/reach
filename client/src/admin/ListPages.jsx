@@ -4,6 +4,7 @@ import { api, fetchDocBlob, fetchMemberEditRequestPhotoBlob, setToken, exportCsv
 import { parseLocalDate, formatDate } from '../dateUtils.js';
 import { AppsTable, MemberGrid } from './shared.jsx';
 import PaymentModal from './PaymentModal.jsx';
+import ExportMembersModal from './ExportMembersModal.jsx';
 
 const STATUSES = ['All', 'Pending Verification', 'Payment Verified', 'Approved', 'Active', 'Rejected', 'Correction Requested', 'Payment Pending'];
 
@@ -475,6 +476,7 @@ export function MembersPage() {
   const [tab, setTab] = useState('members');
   const ctl = useApps('All', tab === 'deleted' ? { deleted: '1' } : {});
   const [editId, setEditId] = useState(null);
+  const [exportOpen, setExportOpen] = useState(false);
   const [actionError, setActionError] = useState(null);
   // Captured synchronously on first render, before usePersisted's own effect below has a
   // chance to write the 'grid' fallback into localStorage — that write would otherwise make
@@ -572,24 +574,6 @@ export function MembersPage() {
 
   const deletedEmptyText = 'No deleted members — the recycle bin is empty.';
 
-  const MEMBER_COLUMNS = [
-    { label: 'Reference/Membership ID', value: (r) => r.membership_id || r.reference_no },
-    { label: 'Name', value: 'name' },
-    { label: 'Place', value: 'place' },
-    { label: 'Panchayath/Municipality', value: 'panchayath' },
-    { label: 'Plan', value: (r) => (r.membership_type === 'lifetime' ? 'Lifetime ₹2,000' : 'Two-Year ₹300') },
-    { label: 'Expat', value: (r) => (r.is_expat ? 'Yes' : 'No') },
-    { label: 'Working Country', value: 'working_country' },
-    { label: 'ID Card', value: 'aadhaar_number' },
-    { label: 'E-mail', value: 'email' },
-    { label: 'WhatsApp Number', value: 'whatsapp_number' },
-    { label: 'Phone Number', value: (r) => r.phone_abroad || r.phone_india || '' },
-    { label: 'Home Contact Number', value: 'home_contact_number' },
-    { label: 'Status', value: 'status' },
-    { label: 'Payment', value: (r) => (r.payment_status === 'Paid' ? 'Paid' : 'Unpaid') },
-    { label: 'Submitted', value: (r) => new Date(r.created_at).toLocaleDateString('en-IN') },
-  ];
-  const exportMembers = () => exportCsv(`${tab === 'deleted' ? 'deleted-members' : 'members'}-${new Date().toISOString().slice(0, 10)}.csv`, MEMBER_COLUMNS, ctl.rows);
 
   return (
     <>
@@ -622,7 +606,7 @@ export function MembersPage() {
             )}
             <FieldsMenu fields={gridFields} setFields={setGridFields} />
             <span style={{ flex: 1 }} />
-            <button className="btn btn-outline btn-sm" onClick={exportMembers} disabled={!ctl.rows?.length}>⬇ Export to Excel</button>
+            <button className="btn btn-outline btn-sm" onClick={() => setExportOpen(true)} disabled={!ctl.rows?.length}>⬇ Export to Excel</button>
           </div>
 
           {tab === 'members' ? (
@@ -644,6 +628,9 @@ export function MembersPage() {
       )}
       {editId && (
         <MemberEditModal id={editId} onClose={() => setEditId(null)} onSaved={() => { setEditId(null); ctl.load(); }} />
+      )}
+      {exportOpen && (
+        <ExportMembersModal rows={ctl.rows || []} filenamePrefix={tab === 'deleted' ? 'deleted-members' : 'members'} onClose={() => setExportOpen(false)} />
       )}
     </>
   );

@@ -10,6 +10,7 @@ import { pool } from '../db.js';
 import { requireAdmin, requireScreen, requireAnyScreen, screensForUser } from '../middleware/auth.js';
 import { sendMail, templates } from '../mailer.js';
 import { buildReceiptPdf } from '../receiptPdf.js';
+import { listExportFields, buildMemberWorkbook } from '../memberExport.js';
 
 const router = express.Router();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -110,6 +111,23 @@ router.get('/applications/stats', requireScreen('overview'), async (req, res, ne
       recent: Number(t.recent) || 0,
       pending: Number(t.pending) || 0,
     });
+  } catch (e) { next(e); }
+});
+
+// Members export: field catalogue, then an .xlsx of the chosen fields in the chosen order for
+// the given member ids (the caller passes the rows currently shown, so filters are respected).
+router.get('/applications/export-fields', requireScreen('members'), async (req, res, next) => {
+  try { res.json({ fields: await listExportFields() }); } catch (e) { next(e); }
+});
+
+router.post('/applications/export', requireScreen('members'), async (req, res, next) => {
+  try {
+    const { ids, fields, sort, dir } = req.body || {};
+    if (!Array.isArray(ids) || !Array.isArray(fields)) return res.status(400).json({ error: 'ids and fields are required' });
+    const buf = await buildMemberWorkbook({ ids, fields, sort, dir });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="members-${new Date().toISOString().slice(0, 10)}.xlsx"`);
+    res.send(buf);
   } catch (e) { next(e); }
 });
 
