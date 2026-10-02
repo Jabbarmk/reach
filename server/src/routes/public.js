@@ -9,6 +9,7 @@ import { mergeHomeContent } from '../homeContent.js';
 import { mergeMemberCountries, attachLiveCounts } from '../memberCountries.js';
 import { getLogoPath } from '../branding.js';
 import { NEWS_DIR } from './news.js';
+import { HERO_DIR } from './settings.js';
 
 const router = express.Router();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -55,6 +56,27 @@ router.get('/home-content', async (req, res, next) => {
     if (rows.length) { try { stored = JSON.parse(rows[0].value); } catch { stored = null; } }
     res.json(mergeHomeContent(stored));
   } catch (e) { next(e); }
+});
+
+// Public: admin-uploaded hero slider images. Empty lists mean "use the built-in slides".
+router.get('/hero-slides', async (req, res, next) => {
+  try {
+    const [rows] = await pool.query("SELECT value FROM settings WHERE name = 'hero_slides'");
+    let stored = {};
+    if (rows.length) { try { stored = JSON.parse(rows[0].value) || {}; } catch { stored = {}; } }
+    const urls = (list) => (Array.isArray(list) ? list : []).map((f) => `/api/hero-slides/file/${encodeURIComponent(f)}`);
+    res.json({ desktop: urls(stored.desktop), mobile: urls(stored.mobile) });
+  } catch (e) { next(e); }
+});
+
+// File names are unique per upload, so they can be cached hard.
+router.get('/hero-slides/file/:name', (req, res) => {
+  const name = path.basename(req.params.name);
+  if (!name.endsWith('.webp')) return res.status(404).end();
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  res.sendFile(path.join(HERO_DIR, name), (err) => {
+    if (err && !res.headersSent) { res.setHeader('Cache-Control', 'no-store'); res.status(404).end(); }
+  });
 });
 
 // Public: homepage "Our Members Country" marquee list.

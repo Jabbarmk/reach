@@ -98,6 +98,11 @@ export const api = {
   // Settings
   homeContent: () => request('/api/home-content'),
   saveHomeContent: (content) => request('/api/admin/settings/home-content', { method: 'PUT', json: content }),
+  heroSlides: () => request('/api/hero-slides'),
+  adminHeroSlides: () => request('/api/admin/settings/hero-slides'),
+  uploadHeroSlide: (device, formData) => request(`/api/admin/settings/hero-slides/${device}`, { method: 'POST', body: formData }),
+  reorderHeroSlides: (device, files) => request(`/api/admin/settings/hero-slides/${device}/order`, { method: 'PUT', json: { files } }),
+  deleteHeroSlide: (device, file) => request(`/api/admin/settings/hero-slides/${device}/${encodeURIComponent(file)}`, { method: 'DELETE' }),
   memberCountries: () => request('/api/member-countries'),
   saveMemberCountries: (data) => request('/api/admin/settings/member-countries', { method: 'PUT', json: data }),
   // News & Events

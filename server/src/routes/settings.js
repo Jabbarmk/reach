@@ -12,6 +12,7 @@ import { mergeMemberCountries, attachLiveCounts } from '../memberCountries.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BRANDING_DIR = path.join(__dirname, '..', '..', 'branding');
+export const HERO_DIR = path.join(__dirname, '..', '..', 'uploads', 'hero');
 
 const router = express.Router();
 router.use(requireAdmin, requireScreen('settings'));
@@ -102,6 +103,93 @@ router.put('/home-content', async (req, res, next) => {
     const merged = mergeHomeContent(req.body || {});
     await putSetting('home_content', merged);
     res.json(merged);
+  } catch (e) { next(e); }
+});
+
+/* ===== Home page hero slider images =====
+   Images arrive already cropped and compressed to WebP by the browser; the server only
+   validates (real WebP bytes, size cap) and stores them. */
+const HERO_DEVICES = ['desktop', 'mobile'];
+const MAX_HERO_SLIDES = 8;
+fs.mkdirSync(HERO_DIR, { recursive: true });
+
+const heroUpload = multer({
+  storage: multer.diskStorage({
+    destination: HERO_DIR,
+    filename: (req, file, cb) => cb(null, `${req.params.device}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.webp`),
+  }),
+  limits: { fileSize: 1.5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const bad = (message) => cb(Object.assign(new Error(message), { status: 400 }));
+    if (!HERO_DEVICES.includes(req.params.device)) return bad('Unknown slider type');
+    if (file.mimetype !== 'image/webp') return bad('Slider images must be WebP');
+    cb(null, true);
+  },
+});
+
+const heroListOf = (stored, device) => (Array.isArray(stored?.[device]) ? stored[device].filter((f) => typeof f === 'string') : []);
+const dropHeroFile = (file) => { try { fs.unlinkSync(path.join(HERO_DIR, path.basename(file))); } catch { /* already gone */ } };
+
+router.get('/hero-slides', async (req, res, next) => {
+  try {
+    const stored = await getSetting('hero_slides', {});
+    res.json({ desktop: heroListOf(stored, 'desktop'), mobile: heroListOf(stored, 'mobile') });
+  } catch (e) { next(e); }
+});
+
+router.post('/hero-slides/:device', heroUpload.single('image'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Please choose an image' });
+    const { device } = req.params;
+    const header = Buffer.alloc(12);
+    const fd = fs.openSync(req.file.path, 'r');
+    try { fs.readSync(fd, header, 0, 12, 0); } finally { fs.closeSync(fd); }
+    if (header.toString('ascii', 0, 4) !== 'RIFF' || header.toString('ascii', 8, 12) !== 'WEBP') {
+      dropHeroFile(req.file.filename);
+      return res.status(400).json({ error: 'File is not a valid WebP image' });
+    }
+    const stored = await getSetting('hero_slides', {});
+    const list = heroListOf(stored, device);
+    if (list.length >= MAX_HERO_SLIDES) {
+      dropHeroFile(req.file.filename);
+      return res.status(400).json({ error: `At most ${MAX_HERO_SLIDES} slides per slider` });
+    }
+    list.push(req.file.filename);
+    await putSetting('hero_slides', { desktop: heroListOf(stored, 'desktop'), mobile: heroListOf(stored, 'mobile'), [device]: list });
+    res.status(201).json({ ok: true, file: req.file.filename });
+  } catch (e) { next(e); }
+});
+
+router.put('/hero-slides/:device/order', async (req, res, next) => {
+  try {
+    const { device } = req.params;
+    if (!HERO_DEVICES.includes(device)) return res.status(400).json({ error: 'Unknown slider type' });
+    const stored = await getSetting('hero_slides', {});
+    const current = heroListOf(stored, device);
+    const wanted = Array.isArray(req.body?.files) ? req.body.files : [];
+    // Only a permutation of the existing files is accepted — this can't add or drop slides.
+    if (wanted.length !== current.length || !current.every((f) => wanted.includes(f))) {
+      return res.status(400).json({ error: 'Order does not match the current slides' });
+    }
+    await putSetting('hero_slides', { desktop: heroListOf(stored, 'desktop'), mobile: heroListOf(stored, 'mobile'), [device]: wanted });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+router.delete('/hero-slides/:device/:file', async (req, res, next) => {
+  try {
+    const { device } = req.params;
+    if (!HERO_DEVICES.includes(device)) return res.status(400).json({ error: 'Unknown slider type' });
+    const file = path.basename(req.params.file);
+    const stored = await getSetting('hero_slides', {});
+    const list = heroListOf(stored, device);
+    if (!list.includes(file)) return res.status(404).json({ error: 'Slide not found' });
+    await putSetting('hero_slides', {
+      desktop: heroListOf(stored, 'desktop'), mobile: heroListOf(stored, 'mobile'),
+      [device]: list.filter((f) => f !== file),
+    });
+    dropHeroFile(file);
+    res.json({ ok: true });
   } catch (e) { next(e); }
 });
 

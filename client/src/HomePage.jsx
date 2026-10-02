@@ -84,7 +84,9 @@ export default function HomePage() {
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 640px)').matches);
   const headerRef = useRef(null);
   const [headerH, setHeaderH] = useState(110);
-  const heroSlides = isMobile ? HERO_SLIDES_MOBILE : HERO_SLIDES;
+  const [customSlides, setCustomSlides] = useState({ desktop: [], mobile: [] }); // admin-uploaded WebP slides
+  const custom = isMobile ? customSlides.mobile : customSlides.desktop;
+  const heroSlides = custom.length ? custom.map((src) => ({ src })) : (isMobile ? HERO_SLIDES_MOBILE : HERO_SLIDES);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 640px)');
@@ -99,9 +101,10 @@ export default function HomePage() {
       // own so a failure in an unrelated endpoint (countries, news, plans) can't blank the
       // whole homepage the way Promise.all's all-or-nothing rejection used to.
       try { setC(await api.homeContent()); } catch { setC(null); return; }
-      const [cfg, memberCountries, newsItems] = await Promise.allSettled([
-        api.formConfig(), api.memberCountries(), api.news(5),
+      const [cfg, memberCountries, newsItems, slides] = await Promise.allSettled([
+        api.formConfig(), api.memberCountries(), api.news(5), api.heroSlides(),
       ]);
+      if (slides.status === 'fulfilled') setCustomSlides({ desktop: slides.value.desktop || [], mobile: slides.value.mobile || [] });
       if (cfg.status === 'fulfilled') setPlans(cfg.value.plans || []);
       if (memberCountries.status === 'fulfilled') setCountries((memberCountries.value.countries || []).filter((co) => co.visible));
       if (newsItems.status === 'fulfilled') setNews(newsItems.value || []);

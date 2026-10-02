@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { api } from '../api.js';
 import { COUNTRY_CODES } from '../data/countryCodes.js';
+import CropModal from '../components/CropModal.jsx';
 
 function LogoCard() {
   const [preview, setPreview] = useState(null); // local object URL before upload
@@ -71,6 +72,115 @@ function LogoCard() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+const SLIDER_KINDS = {
+  desktop: { label: 'Desktop / tablet slider', aspect: 16 / 9, width: 1920, hint: 'Landscape 16:9', ratio: '16 / 9' },
+  mobile: { label: 'Mobile slider', aspect: 9 / 16, width: 900, hint: 'Portrait 9:16', ratio: '9 / 16' },
+};
+
+function SliderSection({ device, files, reload, setError }) {
+  const kind = SLIDER_KINDS[device];
+  const [rawSrc, setRawSrc] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const pick = (f) => {
+    setError(null);
+    if (!f) return;
+    if (!f.type.startsWith('image/')) { setError('Please choose an image file.'); return; }
+    if (f.size > 25 * 1024 * 1024) { setError('Image is too large (max 25 MB before compression).'); return; }
+    setRawSrc(URL.createObjectURL(f));
+  };
+  const closeCrop = () => { URL.revokeObjectURL(rawSrc); setRawSrc(null); };
+
+  const run = async (fn) => {
+    setBusy(true);
+    setError(null);
+    try { await fn(); await reload(); } catch (err) { setError(err.message); } finally { setBusy(false); }
+  };
+
+  const onCropped = (blob) => {
+    closeCrop();
+    run(async () => {
+      const fd = new FormData();
+      fd.append('image', blob, 'slide.webp');
+      await api.uploadHeroSlide(device, fd);
+    });
+  };
+  const move = (i, dir) => {
+    const next = [...files];
+    [next[i], next[i + dir]] = [next[i + dir], next[i]];
+    run(() => api.reorderHeroSlides(device, next));
+  };
+  const remove = (file) => {
+    if (!window.confirm('Remove this slide?')) return;
+    run(() => api.deleteHeroSlide(device, file));
+  };
+
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
+        <strong>{kind.label}</strong>
+        <span className="hint" style={{ margin: 0 }}>{kind.hint} · {files.length ? `${files.length} custom slide(s)` : 'using built-in slides'}</span>
+        <label className={`btn btn-outline btn-sm ${busy || files.length >= 8 ? 'disabled' : ''}`} style={{ cursor: 'pointer', marginLeft: 'auto' }}>
+          + Add slide
+          <input type="file" accept="image/*" hidden disabled={busy || files.length >= 8} onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} />
+        </label>
+      </div>
+      {files.length > 0 && (
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          {files.map((f, i) => (
+            <div key={f} style={{ width: device === 'mobile' ? 110 : 200 }}>
+              <img
+                src={`/api/hero-slides/file/${encodeURIComponent(f)}`} alt={`Slide ${i + 1}`}
+                style={{ width: '100%', aspectRatio: kind.ratio, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)', display: 'block' }}
+              />
+              <div style={{ display: 'flex', gap: 4, marginTop: 4, alignItems: 'center' }}>
+                <button className="icon-btn" title="Move earlier" disabled={busy || i === 0} onClick={() => move(i, -1)}>←</button>
+                <button className="icon-btn" title="Move later" disabled={busy || i === files.length - 1} onClick={() => move(i, 1)}>→</button>
+                <button className="icon-btn danger" title="Remove" disabled={busy} onClick={() => remove(f)} style={{ marginLeft: 'auto' }}>🗑</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {rawSrc && (
+        <CropModal
+          imageSrc={rawSrc} onDone={onCropped} onCancel={closeCrop}
+          aspect={kind.aspect} outputWidth={kind.width} webp
+          title={`Crop ${kind.label.toLowerCase()} image`} doneLabel="Compress & upload"
+        />
+      )}
+    </div>
+  );
+}
+
+function HeroSlidesCard() {
+  const [slides, setSlides] = useState(null);
+  const [error, setError] = useState(null);
+
+  const load = async () => {
+    try { setSlides(await api.adminHeroSlides()); } catch (err) { setError(err.message); }
+  };
+  useEffect(() => { load(); }, []);
+
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <h2 style={{ fontSize: 17, marginBottom: 4 }}>Home Page Slider Images</h2>
+      <p className="sub">
+        Background images of the home page hero. Each image is cropped to the right shape, then resized and
+        compressed to WebP in your browser before upload (typically well under 350 KB). Changes are live
+        immediately. With no custom slides the built-in images are shown; remove all custom slides to go back to them.
+      </p>
+      {error && <div className="alert error">{error}</div>}
+      {!slides ? <div className="empty-note"><span className="spinner lg" /></div> : (
+        <>
+          <SliderSection device="desktop" files={slides.desktop} reload={load} setError={setError} />
+          <SliderSection device="mobile" files={slides.mobile} reload={load} setError={setError} />
+        </>
+      )}
     </div>
   );
 }
@@ -957,6 +1067,7 @@ export default function SettingsPage() {
       <MembersDefaultViewCard />
       <DeclarationsCard />
       <LogoCard />
+      <HeroSlidesCard />
       <HomeContentCard />
       <MemberCountriesCard />
       <IdFormatCard />
