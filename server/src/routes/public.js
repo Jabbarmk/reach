@@ -3,7 +3,9 @@ import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
+import jwt from 'jsonwebtoken';
 import { pool } from '../db.js';
+import { screensForUser } from '../middleware/auth.js';
 import { sendMail, templates } from '../mailer.js';
 import { mergeHomeContent } from '../homeContent.js';
 import { mergeMemberCountries, attachLiveCounts } from '../memberCountries.js';
@@ -212,8 +214,19 @@ router.post(
   ]),
   async (req, res, next) => {
     try {
+      // Dashboard users with Members access can register people even while public registration is off.
+      let staffEntry = false;
+      if (req.body.internal === '1') {
+        const header = req.headers.authorization || '';
+        try {
+          const payload = jwt.verify(header.startsWith('Bearer ') ? header.slice(7) : '', process.env.JWT_SECRET);
+          const [admins] = await pool.query('SELECT * FROM admins WHERE id = ?', [payload.id]);
+          staffEntry = Boolean(admins[0]?.is_active && screensForUser(admins[0]).includes('members'));
+        } catch { /* fall through to 401 */ }
+        if (!staffEntry) return res.status(401).json({ errors: ['Please sign in again to register members from the dashboard'] });
+      }
       const registration = await getRegistrationStatus();
-      if (!registration.open) {
+      if (!registration.open && !staffEntry) {
         return res.status(403).json({ errors: [registration.closed_message] });
       }
       const d = req.body;

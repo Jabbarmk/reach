@@ -118,7 +118,8 @@ function validateStep(step, d, cfg) {
   return e;
 }
 
-export default function RegistrationWizard() {
+// `internal` = used from the admin dashboard: ignores the public open/closed switch.
+export default function RegistrationWizard({ internal = false }) {
   const [step, setStep] = useState(0);
   const [data, setData] = useState(initialData);
   const [errors, setErrors] = useState({});
@@ -150,7 +151,7 @@ export default function RegistrationWizard() {
     );
   }
 
-  if (cfg.registration && cfg.registration.open === false) {
+  if (!internal && cfg.registration && cfg.registration.open === false) {
     return (
       <div className="page narrow">
         <div className="card closed-card">
@@ -186,6 +187,7 @@ export default function RegistrationWizard() {
     try {
       const fd = new FormData();
       fd.append('membership_type', data.membership_type);
+      if (internal) fd.append('internal', '1');
       if (data.photo) fd.append('photo', data.photo.file);
       if (data.aadhaarDoc) {
         fd.append('aadhaar', data.aadhaarDoc.file);

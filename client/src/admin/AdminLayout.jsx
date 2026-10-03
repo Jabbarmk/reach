@@ -5,6 +5,7 @@ import { api, getToken, setToken, getSession, setSession } from '../api.js';
 const NAV = [
   { to: '/admin', label: 'Overview', icon: '▦', end: true, screen: 'overview' },
   { to: '/admin/members', label: 'Members', icon: '👥', screen: 'members' },
+  { to: '/admin/register', label: 'New Registration', icon: '➕', screen: 'members' },
   { to: '/admin/approvals', label: 'Approvals', icon: '☑', badge: 'pending', screen: 'approvals' },
   { to: '/admin/news', label: 'News & Events', icon: '📰', screen: 'events' },
   { to: '/admin/payments', label: 'Payments', icon: '₹', screen: 'payments' },

@@ -52,6 +52,7 @@ export default function App() {
           </Route>
           <Route element={<ScreenGuard screen="members" />}>
             <Route path="members" element={<MembersPage />} />
+            <Route path="register" element={<RegistrationWizard internal />} />
             <Route path="applications/:id" element={<ApplicationDetail />} />
           </Route>
           <Route element={<ScreenGuard screen="approvals" />}>
